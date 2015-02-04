@@ -259,7 +259,7 @@ def do_network_api():
             log.debug("No data received")
 
         # Reload config file just in case, before we send all the data.
-        load_files(CONFIG_PATH)
+        load_files(config_dir)
 
         # Now send all the data we have on the PUB socket.
         log.debug("Build data to publish")
