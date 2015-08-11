@@ -20,7 +20,7 @@ FROM debian:wheezy
 WORKDIR /code/
 
 RUN apt-get update && \
-    apt-get install -qy curl python-dev python-pip git libffi-dev libssl-dev procps
+    apt-get install -qy curl python-dev python-pip git procps
 
 # Make an etcd available as some UTs rely on it.
 RUN curl -L  https://www.github.com/coreos/etcd/releases/download/v2.0.10/etcd-v2.0.10-linux-amd64.tar.gz -o /tmp/etcd.tar.gz
