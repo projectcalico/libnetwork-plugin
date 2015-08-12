@@ -25,6 +25,10 @@ calicobuild.created: $(BUILD_FILES)
 	cd build_calicoctl; docker build -t calico/build-libnetwork .
 	touch calicobuild.created
 
+calicoctl:
+	wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.4/calicoctl
+	chmod +x calicoctl
+
 test: st ut
 
 ut: calicobuild.created
@@ -57,17 +61,12 @@ busybox.tar:
 calico-node.tar: caliconode.created
 	docker save --output calico-node.tar calico/node-libnetwork
 
-#TODO - where to get binary from?
-
-st: binary busybox.tar calico-node.tar run-etcd run-consul
-	dist/calicoctl checksystem --fix
+st: calicoctl busybox.tar calico-node.tar run-etcd run-consul
+	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
 fast-st: busybox.tar calico-node.tar run-etcd run-consul
-	# This runs the tests by calling python directory without using the
-	# calicoctl binary
-	CALICOCTL=$(CURDIR)/calico_containers/calicoctl.py nosetests $(ST_TO_RUN) \
-	-sv --nologcapture --with-timer -a '!slow'
+	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-etcd:
 	@-docker rm -f calico-etcd
@@ -93,22 +92,8 @@ create-dind:
 	docker exec -ti $$ID bash;\
 	docker rm -f $$ID
 
-#TODO
 clean:
 	-rm -f *.created
-	find . -name '*.pyc' -exec rm -f {} +
-	-rm -rf dist
-	-rm -rf build
-	-rm -f calico_containers/busybox.tar
-	-rm -f calico_containers/calico-node.tar
-	-rm -f calico_containers/routereflector.tar
-	-docker rm -f calico-build
-	-docker rm -f calico-node
-	-docker rmi calico/node
-	-docker rmi calico/build
+	-rm -f calicoctl
+	-rm -f *.tar
 	-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker --rm martin/docker-cleanup-volumes
-
-setup-env:
-	virtualenv venv
-	venv/bin/pip install --upgrade -r build_calicoctl/requirements.txt
-	@echo "run\n. venv/bin/activate"

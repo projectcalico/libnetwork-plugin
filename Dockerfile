@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM calico/node:v0.5.4
+#FROM calico/node:v0.5.4
+# TED: Until we do a release of calico-node that removes the libnetwork plugin, we need to build from this special build I pushed
+FROM calico/node:TED
 # Keep the reqs in calico-node for now.
 # add in the runit files and code
 

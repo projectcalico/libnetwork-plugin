@@ -60,8 +60,8 @@ class DockerHost(object):
             docker_ps = partial(self.execute, "docker ps")
             retry_until_success(docker_ps, ex_class=CalledProcessError,
                                 retries=100)
-            self.execute("docker load --input /code/calico_containers/calico-node.tar && "
-                         "docker load --input /code/calico_containers/busybox.tar")
+            self.execute("docker load --input /code/calico-node.tar && "
+                         "docker load --input /code/busybox.tar")
         else:
             self.ip = get_ip()
 
@@ -114,9 +114,9 @@ class DockerHost(object):
             calicoctl = os.environ["CALICOCTL"]
         else:
             if self.dind:
-                calicoctl = "/code/dist/calicoctl"
+                calicoctl = "/code/calicoctl"
             else:
-                calicoctl = "dist/calicoctl"
+                calicoctl = "calicoctl"
         return self.execute(calicoctl + " " + command)
 
     def start_calico_node(self, as_num=None):
@@ -138,6 +138,7 @@ class DockerHost(object):
             args.append('--as=%s' % as_num)
 
         cmd = ' '.join(args)
+        cmd += " --node-image=calico/node-libnetwork"
         self.calicoctl(cmd)
 
     def assert_driver_up(self):

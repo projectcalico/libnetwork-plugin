@@ -22,7 +22,7 @@ from subprocess32 import CalledProcessError
 from werkzeug.exceptions import HTTPException, default_exceptions
 from netaddr import IPNetwork
 
-from libnetwork.datastore_libnetwork import LibnetworkDatastoreClient
+from datastore_libnetwork import LibnetworkDatastoreClient
 from pycalico.datastore_errors import DataStoreError
 from pycalico.datastore_datatypes import IF_PREFIX, Endpoint
 from pycalico.ipam import SequentialAssignment
