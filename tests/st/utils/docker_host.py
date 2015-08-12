@@ -116,7 +116,7 @@ class DockerHost(object):
             if self.dind:
                 calicoctl = "/code/calicoctl"
             else:
-                calicoctl = "calicoctl"
+                calicoctl = "./calicoctl"
         return self.execute(calicoctl + " " + command)
 
     def start_calico_node(self, as_num=None):
