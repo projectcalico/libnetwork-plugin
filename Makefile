@@ -26,7 +26,7 @@ calicobuild.created: $(BUILD_FILES)
 	touch calicobuild.created
 
 calicoctl:
-	wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.4/calicoctl
+	wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
 	chmod +x calicoctl
 
 test: st ut
