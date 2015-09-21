@@ -13,9 +13,6 @@
 # limitations under the License.
 FROM gliderlabs/alpine:latest
 
-# Keep the reqs in calico-node for now.
-# add in the runit files and code
-
 COPY requirements.txt /
 
 RUN apk --update add python py-setuptools iproute2 && \

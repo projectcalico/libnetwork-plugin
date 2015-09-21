@@ -70,6 +70,9 @@ fast-st: busybox.tar calico-node.tar run-etcd run-consul
 run-plugin:
 	docker run -ti --uts="host" -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
 
+run-plugin-local:
+	sudo gunicorn --reload -b unix:///run/docker/plugins/calico.sock libnetwork.driver_plugin:app
+
 run-etcd:
 	@-docker rm -f calico-etcd
 	docker run --detach \
