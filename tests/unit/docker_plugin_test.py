@@ -110,13 +110,10 @@ class TestPlugin(unittest.TestCase):
         """
         Test the join() processing correctly creates the veth and the Endpoint.
         """
-        endpoint_json = {"Interfaces":
-                          [
+        endpoint_json = {"Interface":
                             {"Address": "1.2.3.4",
                              "AddressIPv6": "FE80::0202:B3FF:FE1E:8329",
-                             "ID": 0,
                              "MacAddress": "EE:EE:EE:EE:EE:EE"}
-                          ]
                         }
         m_read.return_value = endpoint_json
 
@@ -149,22 +146,20 @@ class TestPlugin(unittest.TestCase):
         expected_response = """{
   "Gateway": "1.2.3.4",
   "GatewayIPv6": "fe80::202:b3ff:fe1e:8329",
-  "InterfaceNames": [
+  "InterfaceName":
     {
       "DstPrefix": "cali",
       "SrcName": "tmpTEST_ENDPOI"
     }
-  ],
+  ,
   "StaticRoutes": [
     {
       "Destination": "1.2.3.4/32",
-      "InterfaceID": 0,
       "NextHop": "",
       "RouteType": 1
     },
     {
       "Destination": "fe80::202:b3ff:fe1e:8329/128",
-      "InterfaceID": 0,
       "NextHop": "",
       "RouteType": 1
     }
@@ -185,12 +180,9 @@ class TestPlugin(unittest.TestCase):
         """
         m_veth.side_effect = CalledProcessError(2, "testcmd")
 
-        endpoint_json = {"Interfaces":
-                          [
+        endpoint_json = {"Interface":
                             {"Address": "1.2.3.4",
-                             "ID": 0,
                              "MacAddress": "EE:EE:EE:EE:EE:EE"}
-                          ]
                         }
         m_read.return_value = endpoint_json
 
@@ -235,12 +227,9 @@ class TestPlugin(unittest.TestCase):
         """
         Test the join() processing when set_endpoint fails.
         """
-        endpoint_json = {"Interfaces":
-                          [
+        endpoint_json = {"Interface":
                             {"Address": "1.2.3.4",
-                             "ID": 0,
                              "MacAddress": "EE:EE:EE:EE:EE:EE"}
-                          ]
                         }
         m_read.return_value = endpoint_json
 
@@ -456,15 +445,13 @@ class TestPlugin(unittest.TestCase):
 
             # Construct the expected data.
             expected_data = {
-                              "Interfaces":
-                                [
-                                  {"ID": 0, "MacAddress": "EE:EE:EE:EE:EE:EE"}
-                                ]
+                              "Interface":
+                                  {"MacAddress": "EE:EE:EE:EE:EE:EE"}
                             }
             if ipv4:
-                expected_data["Interfaces"][0]["Address"] = str(ipv4)
+                expected_data["Interface"]["Address"] = str(ipv4)
             if ipv6:
-                expected_data["Interfaces"][0]["AddressIPv6"] = str(ipv6)
+                expected_data["Interface"]["AddressIPv6"] = str(ipv6)
 
             # Assert that the assign IP was called the correct number of
             # times based on whether a next hop was returned.
@@ -609,18 +596,18 @@ class TestPlugin(unittest.TestCase):
         """
         m_unassign.return_value = True
 
-        cnm_ep = {"Interfaces": [{"Address": "1.2.3.4"}]}
+        cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
         m_unassign.assert_called_once_with(IPAddress("1.2.3.4"))
         m_unassign.reset_mock()
 
-        cnm_ep = {"Interfaces": [{"AddressIPv6": "aa:bb::ff"}]}
+        cnm_ep = {"Interface": {"AddressIPv6": "aa:bb::ff"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
         m_unassign.assert_called_once_with(IPAddress("aa:bb::ff"))
         m_unassign.reset_mock()
 
-        cnm_ep = {"Interfaces": [{"Address": "1.2.3.4",
-                                  "AddressIPv6": "aa:bb::ff"}]}
+        cnm_ep = {"Interface": {"Address": "1.2.3.4",
+                                  "AddressIPv6": "aa:bb::ff"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
         m_unassign.assert_has_calls([call(IPAddress("1.2.3.4")),
                                      call(IPAddress("aa:bb::ff"))])
@@ -633,7 +620,7 @@ class TestPlugin(unittest.TestCase):
         """
         m_unassign.return_value = False
 
-        cnm_ep = {"Interfaces": [{"Address": "1.2.3.4"}]}
+        cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
         m_unassign.assert_called_once_with(IPAddress("1.2.3.4"))
 

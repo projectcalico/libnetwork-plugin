@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from flask import Flask, jsonify, abort, request
 import os
 import socket
@@ -66,7 +65,7 @@ def make_json_app(import_name, **kwargs):
 
 app = make_json_app(__name__)
 app.logger.addHandler(logging.StreamHandler(sys.stdout))
-app.logger.setLevel(logging.INFO)
+app.logger.setLevel(logging.INFO) # TODO - make this configuration dynamically
 
 app.logger.info("Application started")
 
@@ -74,6 +73,9 @@ app.logger.info("Application started")
 def activate():
     return jsonify({"Implements": ["NetworkDriver"]})
 
+@app.route('/NetworkDriver.GetCapabilities', methods=['POST'])
+def get_capabilities():
+    return jsonify({"Scope": "global"})
 
 @app.route('/NetworkDriver.CreateNetwork', methods=['POST'])
 def create_network():
@@ -154,17 +156,17 @@ def create_endpoint():
         abort(500)
 
     # Create the JSON to return to libnetwork
-    response = {"Interfaces":
-                    [{"ID": 0,
-                 "MacAddress": FIXED_MAC}]}
+    response = {"Interface":
+                    {"MacAddress": FIXED_MAC}}
     if ip:
-        response["Interfaces"][0]["Address"] = str(ip)
+        response["Interface"]["Address"] = str(ip)
     if ip6:
-        response["Interfaces"][0]["AddressIPv6"] = str(ip6)
+        response["Interface"]["AddressIPv6"] = str(ip6)
 
     # Save this response along with the ep_id into the datastore.
     client.write_cnm_endpoint(ep_id, response)
 
+    app.logger.debug("CreateEndpoint JSON=%s", response)
     return jsonify(response)
 
 
@@ -222,12 +224,12 @@ def join():
 
     #TODO - this assumes there are still IPv6 gateways configured (could
     # have been deleted in the interim)
-    address_ip4 = cnm_ep['Interfaces'][0].get('Address')
+    address_ip4 = cnm_ep['Interface'].get('Address')
     if address_ip4:
         ep.ipv4_nets.add(IPNetwork(address_ip4))
         ep.ipv4_gateway = next_hops[4]
 
-    address_ip6 = cnm_ep['Interfaces'][0].get('AddressIPv6')
+    address_ip6 = cnm_ep['Interface'].get('AddressIPv6')
     if address_ip6:
         ep.ipv6_nets.add(IPNetwork(address_ip6))
         ep.ipv6_gateway = next_hops[6]
@@ -246,16 +248,15 @@ def join():
         abort(500)
 
     ret_json = {
-        "InterfaceNames": [{
+        "InterfaceName": {
             "SrcName": ep.temp_interface_name,
             "DstPrefix": IF_PREFIX
-        }],
+        },
         "Gateway": str(ep.ipv4_gateway),
         "StaticRoutes": [{
             "Destination": "%s/32" % ep.ipv4_gateway,
             "RouteType": 1,  # 1 = CONNECTED
             "NextHop": "",
-            "InterfaceID": 0
             }]
     }
     if ep.ipv6_gateway:
@@ -264,9 +265,9 @@ def join():
             "Destination": "%s/128" % ep.ipv6_gateway,
             "RouteType": 1,  # 1 = CONNECTED
             "NextHop": "",
-            "InterfaceID": 0
             })
 
+    app.logger.debug("Join JSON=%s", ret_json)
     return jsonify(ret_json)
 
 
@@ -338,8 +339,8 @@ def unassign_ip(ip):
 
 def backout_ip_assignments(cnm_ep):
     # TODO - more testing
-    for address in (cnm_ep['Interfaces'][0].get('Address'),
-                    cnm_ep['Interfaces'][0].get('AddressIPv6')):
+    for address in (cnm_ep['Interface'].get('Address'),
+                    cnm_ep['Interface'].get('AddressIPv6')):
         # If either of the addresses aren't present, then .get will just
         # return None.
         if address is not None and not unassign_ip(IPNetwork(address).ip):
