@@ -162,9 +162,9 @@ def create_endpoint():
     response = {"Interface":
                     {"MacAddress": FIXED_MAC}}
     if ip:
-        response["Interface"]["Address"] = str(ip)
+        response["Interface"]["Address"] = str(ip) + "/32"
     if ip6:
-        response["Interface"]["AddressIPv6"] = str(ip6)
+        response["Interface"]["AddressIPv6"] = str(ip6) + "/128"
 
     # Save this response along with the ep_id into the datastore.
     client.write_cnm_endpoint(ep_id, response)

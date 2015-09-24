@@ -449,9 +449,9 @@ class TestPlugin(unittest.TestCase):
                                   {"MacAddress": "EE:EE:EE:EE:EE:EE"}
                             }
             if ipv4:
-                expected_data["Interface"]["Address"] = str(ipv4)
+                expected_data["Interface"]["Address"] = str(ipv4) + "/32"
             if ipv6:
-                expected_data["Interface"]["AddressIPv6"] = str(ipv6)
+                expected_data["Interface"]["AddressIPv6"] = str(ipv6) + "/128"
 
             # Assert that the assign IP was called the correct number of
             # times
@@ -542,7 +542,7 @@ class TestPlugin(unittest.TestCase):
         """
         m_release.side_effect = RuntimeError()
 
-        cnm_ep = {"Interfaces": [{"Address": "1.2.3.4"}]}
+        cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
         m_release.assert_called_once_with({IPAddress("1.2.3.4")})
 

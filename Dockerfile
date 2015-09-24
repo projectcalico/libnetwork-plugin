@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# TODO - this should be properly versioned
 FROM calico/node:latest
 
 # Keep the reqs in calico-node for now.
