@@ -24,7 +24,6 @@ from netaddr import IPNetwork
 from datastore_libnetwork import LibnetworkDatastoreClient
 from pycalico.datastore_errors import DataStoreError
 from pycalico.datastore_datatypes import IF_PREFIX, Endpoint
-from pycalico.ipam import SequentialAssignment
 from pycalico import netns
 
 
@@ -135,33 +134,37 @@ def create_endpoint():
     # If the host has a v4 address and a v4 pool defined then assign a v4
     # address. Likewise for v6. If neither are assigned then abort.
     next_hops = client.get_default_next_hops(hostname)
+    num_ipv4 = 1 if next_hops.get(4) else 0
+    num_ipv6 = 1 if next_hops.get(6) else 0
+    ipv4s, ipv6s = client.auto_assign_ips(num_ipv4, num_ipv6, None, {})
     ip = None
-    ip6 = None
-    if next_hops.get(4):
-        ip = assign_ip(4)
-        if ip:
+    if num_ipv4:
+        if ipv4s:
+            ip = ipv4s[0]
             app.logger.info("Assigned IPv4 %s for ep %s" % (ip, ep_id))
         else:
             app.logger.error("Failed to allocate IPv4 for endpoint %s", ep_id)
 
-    if next_hops.get(6):
-        ip6 = assign_ip(6)
-        if ip6:
+    ip6 = None
+    if num_ipv6:
+        if ipv6s:
+            ip6 = ipv6s[0]
             app.logger.info("Assigned IPv6 %s for ep %s" % (ip6, ep_id))
         else:
-            app.logger.error("Failed to allocate IPv6 for endpoint %s", ep_id)
+            app.logger.error("Failed to allocate IPv6 for endpoint %s",
+                             ep_id)
     if not ip and not ip6:
         app.logger.error("Failed to allocate and address for endpoint %s",
-                        ep_id)
+                         ep_id)
         abort(500)
 
     # Create the JSON to return to libnetwork
     response = {"Interface":
                     {"MacAddress": FIXED_MAC}}
     if ip:
-        response["Interface"]["Address"] = str(ip)
+        response["Interface"]["Address"] = str(ip) + "/32"
     if ip6:
-        response["Interface"]["AddressIPv6"] = str(ip6)
+        response["Interface"]["AddressIPv6"] = str(ip6) + "/128"
 
     # Save this response along with the ep_id into the datastore.
     client.write_cnm_endpoint(ep_id, response)
@@ -301,51 +304,22 @@ def leave():
     return jsonify({})
 
 
-#TODO move assign_ip/unassign_ip
-#TODO This current returns an IPNetwork not an IPAddress
-def assign_ip(version):
-    """
-    Assign a IP address from the configured pools.
-    :param version: 4 for IPv4, 6 for IPv6.
-    :return: An IPAddress, or None if an IP couldn't be
-             assigned
-    """
-    ip = None
-
-    assert version in [4, 6]
-    # For each configured pool, attempt to assign an IP before giving up.
-    for pool in client.get_ip_pools(version):
-        assigner = SequentialAssignment()
-        ip = assigner.allocate(pool)
-        if ip is not None:
-            ip = IPNetwork(ip)
-            break
-    return ip
-
-
-def unassign_ip(ip):
-    """
-    Unassign a IP address from the configured pools.
-    :param ip: IPAddress to unassign.
-    :return: True if the unassignment succeeded. False otherwise.
-    """
-    # For each configured pool, attempt to unassign the IP before giving up.
-    version = ip.version
-    for pool in client.get_ip_pools(version):
-        if ip in pool and client.unassign_address(pool, ip):
-            return True
-    return False
-
-
 def backout_ip_assignments(cnm_ep):
     # TODO - more testing
     for address in (cnm_ep['Interface'].get('Address'),
                     cnm_ep['Interface'].get('AddressIPv6')):
         # If either of the addresses aren't present, then .get will just
         # return None.
-        if address is not None and not unassign_ip(IPNetwork(address).ip):
-            # The unassignment is best effort. Just log if it fails.
-            app.logger.warn("Failed to unassign IP address %s", address)
+        if address is not None:
+            try:
+                err = client.release_ips({IPNetwork(address).ip})
+            except Exception as e:
+                # The unassignment is best effort. Just log if it fails.
+                app.logger.warn("Failed to unassign IP address %s; %s",
+                                address, e)
+            else:
+                if err:
+                    app.logger.warn("Address %s was not assigned.", address)
 
 
 def create_veth(endpoint):

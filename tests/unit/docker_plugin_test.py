@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from etcd import EtcdResult
 import json
 import unittest
 
 from mock import patch, ANY, call
 from netaddr import IPAddress, IPNetwork
-from nose.tools import assert_equal
+from nose.tools import assert_equal, assert_dict_equal
 from subprocess32 import CalledProcessError
 
 from libnetwork import docker_plugin
@@ -396,10 +397,10 @@ class TestPlugin(unittest.TestCase):
         self.assertDictEqual(json.loads(rv.data), {})
 
     @patch("libnetwork.docker_plugin.client.cnm_endpoint_exists", autospec=True, return_value=False)
-    @patch("libnetwork.docker_plugin.assign_ip", autospec=True)
+    @patch("libnetwork.docker_plugin.client.auto_assign_ips", autospec=True)
     @patch("libnetwork.docker_plugin.client.write_cnm_endpoint", autospec=True)
     @patch("libnetwork.docker_plugin.client.get_default_next_hops", autospec=True)
-    def test_create_endpoint(self, m_next_hops, m_write, m_assign_ip, m_exists):
+    def test_create_endpoint(self, m_next_hops, m_write, m_auto_assign, m_exists):
         """
         Test the create_endpoint hook correctly writes the appropriate data
         to etcd based on IP assignment.
@@ -428,13 +429,12 @@ class TestPlugin(unittest.TestCase):
                                         6: ipv6_nh}
 
             # Return the required assigned IPs.
-            def assign_ip(version):
-                if version == 4:
-                    return ipv4
-                elif version == 6:
-                    return ipv6
-                raise AssertionError("Unexpected version: %s" % version)
-            m_assign_ip.side_effect = assign_ip
+            def assign_ip(num_v4, num_v6, handle, attr, pool=(None, None)):
+                ipv4s = [ipv4] if num_v4 and ipv4 is not None else []
+                ipv6s = [ipv6] if num_v6 and ipv6 is not None else []
+                return ipv4s, ipv6s
+
+            m_auto_assign.side_effect = assign_ip
 
             # Invoke create endpoint.
             rv = self.app.post('/NetworkDriver.CreateEndpoint',
@@ -449,18 +449,13 @@ class TestPlugin(unittest.TestCase):
                                   {"MacAddress": "EE:EE:EE:EE:EE:EE"}
                             }
             if ipv4:
-                expected_data["Interface"]["Address"] = str(ipv4)
+                expected_data["Interface"]["Address"] = str(ipv4) + "/32"
             if ipv6:
-                expected_data["Interface"]["AddressIPv6"] = str(ipv6)
+                expected_data["Interface"]["AddressIPv6"] = str(ipv6) + "/128"
 
             # Assert that the assign IP was called the correct number of
-            # times based on whether a next hop was returned.
-            expected_assign_count = 0
-            if ipv4_nh:
-                expected_assign_count += 1
-            if ipv6_nh:
-                expected_assign_count += 1
-            assert_equal(m_assign_ip.call_count, expected_assign_count)
+            # times
+            assert_equal(m_auto_assign.call_count, 1)
 
             # Assert expected data is written to etcd and returned from
             # request.
@@ -471,7 +466,7 @@ class TestPlugin(unittest.TestCase):
             # Reset the Mocks before continuing.
             m_write.reset_mock()
             m_next_hops.reset_mock()
-            m_assign_ip.reset_mock()
+            m_auto_assign.reset_mock()
             m_exists.reset_mock()
 
     @patch("libnetwork.docker_plugin.client.cnm_endpoint_exists", autospec=True, return_value=False)
@@ -515,114 +510,54 @@ class TestPlugin(unittest.TestCase):
         # Assert empty data is returned.
         self.assertDictEqual(json.loads(rv.data), {})
 
-    @patch("libnetwork.docker_plugin.client.get_ip_pools", autospec=True)
-    @patch("pycalico.ipam.SequentialAssignment.allocate", autospec=True)
-    def test_assign_ip(self, m_allocate, m_pools):
-        """
-        Test assign_ip assigns an IP address.
-        """
-        m_pools.return_value = [IPNetwork("1.2.3.0/24"), IPNetwork("2.3.4.5/32")]
-        m_allocate.return_value = IPAddress("1.2.3.6")
-        ip = docker_plugin.assign_ip(4)
-        assert_equal(ip, IPNetwork("1.2.3.6"))
-        m_pools.assert_called_once_with(4)
-        m_allocate.assert_called_once_with(ANY, IPNetwork("1.2.3.0/24"))
-
-    @patch("libnetwork.docker_plugin.client.get_ip_pools", autospec=True)
-    @patch("pycalico.ipam.SequentialAssignment.allocate", autospec=True)
-    def test_assign_ip_no_ip(self, m_allocate, m_pools):
-        """
-        Test assign_ip when no IP addresses can be allocated.
-        """
-        m_pools.return_value = [IPNetwork("1.2.3.0/24"),
-                                IPNetwork("2.3.4.5/32")]
-        m_allocate.return_value = None
-        ip = docker_plugin.assign_ip(4)
-        assert_equal(ip, None)
-        m_pools.assert_called_once_with(4)
-
-        # We should have attempted to allocate for each pool.
-        m_allocate.assert_has_calls([call(ANY, IPNetwork("1.2.3.0/24")),
-                                     call(ANY, IPNetwork("2.3.4.5/32"))])
-
-    @patch("libnetwork.docker_plugin.client.get_ip_pools", autospec=True)
-    @patch("libnetwork.docker_plugin.client.unassign_address", autospec=True)
-    def test_unassign_ip(self, m_unassign, m_pools):
-        """
-        Test unassign_ip unassigns an IP address.
-        """
-        m_pools.return_value = [IPNetwork("1.2.3.0/24"), IPNetwork("2.3.0.0/16")]
-        m_unassign.return_value = True
-        self.assertTrue(docker_plugin.unassign_ip(IPAddress("2.3.4.5")))
-
-        m_pools.assert_called_once_with(4)
-        m_unassign.assert_called_once_with(IPNetwork("2.3.0.0/16"),
-                                           IPAddress("2.3.4.5"))
-
-    @patch("libnetwork.docker_plugin.client.get_ip_pools", autospec=True)
-    @patch("libnetwork.docker_plugin.client.unassign_address", autospec=True)
-    def test_unassign_ip_no_pools(self, m_unassign, m_pools):
-        """
-        Test unassign_ip when the IP does not fall in any configured pools.
-        """
-        m_pools.return_value = [IPNetwork("1.2.3.0/24"), IPNetwork("2.3.0.0/16")]
-        m_unassign.return_value = False
-        self.assertFalse(docker_plugin.unassign_ip(IPAddress("2.30.11.11")))
-        m_pools.assert_called_once_with(4)
-        self.assertEquals(m_unassign.call_count, 0)
-
-    @patch("libnetwork.docker_plugin.client.get_ip_pools", autospec=True)
-    @patch("libnetwork.docker_plugin.client.unassign_address", autospec=True)
-    def test_unassign_ip_not_in_pools(self, m_unassign, m_pools):
-        """
-        Test unassign_ip when the IP does not fall in any configured pools.
-        """
-        m_pools.return_value = [IPNetwork("1.2.3.0/24"),
-                                IPNetwork("2.3.0.0/16"),
-                                IPNetwork("1.2.0.0/16")]
-        m_unassign.return_value = False
-        self.assertFalse(docker_plugin.unassign_ip(IPAddress("1.2.3.4")))
-        m_pools.assert_called_once_with(4)
-        m_unassign.assert_has_calls([call(IPNetwork("1.2.3.0/24"),
-                                          IPAddress("1.2.3.4")),
-                                     call(IPNetwork("1.2.0.0/16"),
-                                          IPAddress("1.2.3.4"))])
-
-    @patch("libnetwork.docker_plugin.unassign_ip", autospec=True)
-    def test_backout_ip_assignments(self, m_unassign):
+    @patch("libnetwork.docker_plugin.client.release_ips", autospec=True)
+    def test_backout_ip_assignments(self, m_release):
         """
         Test backout_ip_assignment processing.
         :return:
         """
-        m_unassign.return_value = True
+        m_release.return_value = set()
 
         cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
-        m_unassign.assert_called_once_with(IPAddress("1.2.3.4"))
-        m_unassign.reset_mock()
+        m_release.assert_called_once_with({IPAddress("1.2.3.4")})
+        m_release.reset_mock()
 
         cnm_ep = {"Interface": {"AddressIPv6": "aa:bb::ff"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
-        m_unassign.assert_called_once_with(IPAddress("aa:bb::ff"))
-        m_unassign.reset_mock()
+        m_release.assert_called_once_with({IPAddress("aa:bb::ff")})
+        m_release.reset_mock()
 
         cnm_ep = {"Interface": {"Address": "1.2.3.4",
                                   "AddressIPv6": "aa:bb::ff"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
-        m_unassign.assert_has_calls([call(IPAddress("1.2.3.4")),
-                                     call(IPAddress("aa:bb::ff"))])
+        m_release.assert_has_calls([call({IPAddress("1.2.3.4")}),
+                                    call({IPAddress("aa:bb::ff")})])
 
-    @patch("libnetwork.docker_plugin.unassign_ip", autospec=True)
-    def test_backout_ip_assignments_failed_unassign(self, m_unassign):
+    @patch("libnetwork.docker_plugin.client.release_ips", autospec=True)
+    def test_backout_ip_assignments_failed_unassign(self, m_release):
         """
         Test backout_ip_assignment processing when unassignment fails.
         :return:
         """
-        m_unassign.return_value = False
+        m_release.side_effect = RuntimeError()
 
         cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
         docker_plugin.backout_ip_assignments(cnm_ep)
-        m_unassign.assert_called_once_with(IPAddress("1.2.3.4"))
+        m_release.assert_called_once_with({IPAddress("1.2.3.4")})
+
+    @patch("libnetwork.docker_plugin.client.release_ips", autospec=True)
+    def test_backout_ip_assignments_not_assigned(self, m_release):
+        """
+        Test backout_ip_assignment processing when address was already
+        unassigned.
+        :return:
+        """
+        m_release.return_value = {IPAddress("1.2.3.4")}
+
+        cnm_ep = {"Interface": {"Address": "1.2.3.4"}}
+        docker_plugin.backout_ip_assignments(cnm_ep)
+        m_release.assert_called_once_with({IPAddress("1.2.3.4")})
 
     @patch("pycalico.netns.set_veth_mac", autospec=True)
     @patch("pycalico.netns.create_veth", autospec=True)
