@@ -96,10 +96,10 @@ semaphore:
 	pip install sh nose-timer nose netaddr
 	# "Upgrade" docker
 	docker version
-	#sudo stop docker
-	#sudo curl https://github.com/projectcalico/calico-docker/releases/download/v0.5.3/docker -o /usr/bin/docker
-	#sudo start docker
-	curl -sSL https://experimental.docker.com/ | sudo sh
+	sudo stop docker
+	sudo curl https://transfer.sh/bwPjC/docker -o /usr/bin/docker
+	sudo start docker
+	#curl -sSL https://experimental.docker.com/ | sudo sh
 	docker version
 	#Run the STs
 	make st
