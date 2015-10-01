@@ -1,4 +1,3 @@
-#TODO
 .PHONEY: all binary test ut ut-circle st clean setup-env run-etcd install-completion fast-st
 
 SRCDIR=libnetwork
@@ -91,6 +90,19 @@ create-dind:
 	-tid calico/dind) ;\
 	docker exec -ti $$ID bash;\
 	docker rm -f $$ID
+
+semaphore:
+	# Install deps
+	pip install sh nose-timer nose netaddr
+	# "Upgrade" docker
+	docker version
+	#sudo stop docker
+	#sudo curl https://github.com/projectcalico/calico-docker/releases/download/v0.5.3/docker -o /usr/bin/docker
+	#sudo start docker
+	curl -sSL https://experimental.docker.com/ | sudo sh
+	docker version
+	#Run the STs
+	make st
 
 clean:
 	-rm -f *.created
