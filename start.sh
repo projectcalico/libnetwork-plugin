@@ -1,6 +1,6 @@
 #!/bin/sh
 exec 2>&1
-GUNICORN=/usr/local/bin/gunicorn
+GUNICORN=/usr/bin/gunicorn
 ROOT=/calico_containers
 PID=/var/run/gunicorn.pid
 APP=libnetwork_plugin.docker_plugin:app
@@ -8,7 +8,7 @@ APP=libnetwork_plugin.docker_plugin:app
 if [ -f $PID ]; then rm $PID; fi
 
 exec $GUNICORN --chdir $ROOT --pid=$PID \
--b unix:///usr/share/docker/plugins/calico.sock $APP \
+-b unix:///run/docker/plugins/calico.sock $APP \
 --timeout 5 \
 --log-level=info \
 --workers 1 \

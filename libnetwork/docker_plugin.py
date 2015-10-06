@@ -64,7 +64,7 @@ def make_json_app(import_name, **kwargs):
 
 app = make_json_app(__name__)
 app.logger.addHandler(logging.StreamHandler(sys.stdout))
-app.logger.setLevel(logging.INFO) # TODO - make this configuration dynamically
+app.logger.setLevel(logging.DEBUG) # TODO - make this configuration dynamically
 
 app.logger.info("Application started")
 
