@@ -16,8 +16,11 @@ import uuid
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
 import logging
+from tests.st.utils.utils import check_number_endpoints, check_profile, \
+    get_profile_name
 
 logger = logging.getLogger(__name__)
+
 
 class TestMainline(TestBase):
     def test_mainline(self):
@@ -26,23 +29,37 @@ class TestMainline(TestBase):
         """
         # TODO - add in IPv6 as part of this flow.
         with DockerHost('host') as host:
+            # Set up two endpoints on one host
             network = host.create_network(str(uuid.uuid4()))
-            node1 = host.create_workload(str(uuid.uuid4()), network=network)
-            node2 = host.create_workload(str(uuid.uuid4()), network=network)
+            workload1 = host.create_workload(str(uuid.uuid4()), network=network)
+            workload2 = host.create_workload(str(uuid.uuid4()), network=network)
 
-            # TODO - assert on output of endpoint show and endpoint profile
-            # show commands.
+            # Assert that endpoints are in Calico
+            check_number_endpoints(host, 2)
+
+            # Assert that the profile has been created for the network
+            profile_name = get_profile_name(host, network)
+            self.assertTrue(check_profile(host, profile_name))
 
             # Allow network to converge
-            node1.assert_can_ping(node2.ip, retries=5)
-
             # Check connectivity.
-            self.assert_connectivity([node1, node2])
+            workload1.assert_can_ping(workload2.ip, retries=5)
+            self.assert_connectivity([workload1, workload2])
 
-            # Test calicoctl teardown commands.
-            # TODO - detach ("leave") the endpoints - (assert can't ping and
-            #  endpoints are removed from calicoctl)
-            # TODO - unpublish the endpoints - (assert IPs are released)
-            # TODO - remove the network - (assert profile is removed)
+            # Disconnect endpoints from the network
+            # Assert can't ping and endpoints are removed from Calico
+            network.disconnect(workload1)
+            network.disconnect(workload2)
+            workload1.assert_cant_ping(workload2.ip, retries=5)
+            check_number_endpoints(host, 0)
+
+            # Remove the endpoints on the host
+            # TODO (assert IPs are released)
+            host.remove_workloads()
+
+            # Remove the network and assert profile is removed
+            network.delete()
+            self.assertFalse(check_profile(host, profile_name))
+
             # TODO - Remove this calico node
 
