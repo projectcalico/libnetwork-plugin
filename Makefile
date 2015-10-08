@@ -4,9 +4,7 @@ SRCDIR=libnetwork
 SRC_FILES=$(wildcard $(SRCDIR)/*.py)
 BUILD_DIR=build_calicoctl
 BUILD_FILES=$(BUILD_DIR)/Dockerfile $(BUILD_DIR)/requirements.txt
-# There are subdirectories so use shell rather than wildcard
-NODE_FILESYSTEM=$(shell find node_filesystem/ -type f)
-NODE_FILES=Dockerfile $(NODE_FILESYSTEM)
+NODE_FILES=Dockerfile start.sh
 
 # These variables can be overridden by setting an environment variable.
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 | cut -d' ' -f8)
@@ -25,7 +23,9 @@ calicobuild.created: $(BUILD_FILES)
 	touch calicobuild.created
 
 calicoctl:
-	wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
+	#wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
+	# Update to a release when there is one.
+	wget https://circle-artifacts.com/gh/projectcalico/calico-docker/1860/artifacts/0/home/ubuntu/calico-docker/dist/calicoctl
 	chmod +x calicoctl
 
 test: st ut
@@ -66,6 +66,9 @@ st: calicoctl busybox.tar calico-node.tar run-etcd run-consul
 
 fast-st: busybox.tar calico-node.tar run-etcd run-consul
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
+
+run-plugin:
+	docker run -ti --uts="host" -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
 
 run-etcd:
 	@-docker rm -f calico-etcd

@@ -11,11 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# TODO - this should be properly versioned
-FROM calico/node:latest
+FROM gliderlabs/alpine:latest
 
 # Keep the reqs in calico-node for now.
 # add in the runit files and code
 
-COPY node_filesystem /
+COPY requirements.txt /
+
+RUN apk --update add python py-setuptools iproute2 && \
+    apk add --virtual build-dependencies git python-dev build-base curl bash py-pip alpine-sdk libffi-dev openssl-dev && \
+    pip install -r requirements.txt && \
+    apk del build-dependencies && rm -rf /var/cache/apk/*
+
+COPY start.sh /
 COPY libnetwork /calico_containers/libnetwork_plugin
+
+ENTRYPOINT ["./start.sh"]
