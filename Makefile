@@ -24,7 +24,8 @@ calicobuild.created: $(BUILD_FILES)
 
 calicoctl:
 	#wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
-	wget https://circle-artifacts.com/gh/projectcalico/calico-docker/1848/artifacts/0/home/ubuntu/calico-docker/dist/calicoctl
+	# Update to a release when there is one.
+	wget https://circle-artifacts.com/gh/projectcalico/calico-docker/1860/artifacts/0/home/ubuntu/calico-docker/dist/calicoctl
 	chmod +x calicoctl
 
 test: st ut

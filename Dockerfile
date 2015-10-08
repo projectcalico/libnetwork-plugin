@@ -18,7 +18,7 @@ FROM gliderlabs/alpine:latest
 
 COPY requirements.txt /
 
-RUN apk --update add python py-setuptools && \
+RUN apk --update add python py-setuptools iproute2 && \
     apk add --virtual build-dependencies git python-dev build-base curl bash py-pip alpine-sdk libffi-dev openssl-dev && \
     pip install -r requirements.txt && \
     apk del build-dependencies && rm -rf /var/cache/apk/*
