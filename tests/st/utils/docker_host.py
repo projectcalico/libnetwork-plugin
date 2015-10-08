@@ -138,7 +138,7 @@ class DockerHost(object):
             args.append('--as=%s' % as_num)
 
         cmd = ' '.join(args)
-        cmd += " --node-image=calico/node-libnetwork"
+        cmd += " --libnetwork"
         self.calicoctl(cmd)
 
     def assert_driver_up(self):

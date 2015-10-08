@@ -23,7 +23,8 @@ calicobuild.created: $(BUILD_FILES)
 	touch calicobuild.created
 
 calicoctl:
-	wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
+	#wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
+	wget https://circle-artifacts.com/gh/projectcalico/calico-docker/1848/artifacts/0/home/ubuntu/calico-docker/dist/calicoctl
 	chmod +x calicoctl
 
 test: st ut
@@ -67,7 +68,6 @@ fast-st: busybox.tar calico-node.tar run-etcd run-consul
 
 run-plugin:
 	docker run -ti --uts="host" -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
-
 
 run-etcd:
 	@-docker rm -f calico-etcd
