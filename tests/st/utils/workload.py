@@ -30,8 +30,7 @@ class Workload(object):
     These are the end-users containers that will run application-level
     software.
     """
-    def __init__(self, host, name, image="busybox", network=None,
-                 service=None):
+    def __init__(self, host, name, image="busybox", network=None):
         """
         Create the workload and detect its IPs.
 
@@ -45,8 +44,6 @@ class Workload(object):
         has ping.
         :param network: The DockerNetwork to connect to.  Set to None to use
         default Docker networking.
-        :param service: The name of the service to use. Set to None to have
-        a random one generated.
         """
         self.host = host
         self.name = name
@@ -61,9 +58,7 @@ class Workload(object):
         if network:
             if network is not NET_NONE:
                 assert isinstance(network, DockerNetwork)
-            if service is None:
-                service = str(uuid.uuid4())
-            args.append("--publish-service=%s.%s" % (service, network))
+            args.append("--net %s" % network)
         args.append(image)
         command = ' '.join(args)
 

@@ -46,8 +46,8 @@ class DockerHost(object):
             docker.run("--privileged", "-v", os.getcwd()+":/code", "--name",
                        self.name,
                        "-e", "DOCKER_DAEMON_ARGS="
-                       "--kv-store=consul:%s:8500" % utils.get_ip(),
-                       "-tid", "calico/dind")
+                       "--cluster-store=consul://%s:8500" % utils.get_ip(),
+                       "-tid", "tomdee/dind-ux")
             self.ip = docker.inspect("--format", "{{ .NetworkSettings.IPAddress }}",
                                      self.name).stdout.rstrip()
 
@@ -238,13 +238,11 @@ class DockerHost(object):
         """
         assert self._cleaned
 
-    def create_workload(self, name, image="busybox", network=None,
-                        service=None):
+    def create_workload(self, name, image="busybox", network=None):
         """
         Create a workload container inside this host container.
         """
-        workload = Workload(self, name, image=image, network=network,
-                            service=service)
+        workload = Workload(self, name, image=image, network=network)
         self.workloads.add(workload)
         return workload
 

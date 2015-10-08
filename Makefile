@@ -86,21 +86,23 @@ create-dind:
 	@echo "You may want to load calico-node with"
 	@echo "docker load --input /code/calico-node.tar"
 	@ID=$$(docker run --privileged -v `pwd`:/code \
-	-e DOCKER_DAEMON_ARGS=--kv-store=consul:$(LOCAL_IP_ENV):8500 \
-	-tid calico/dind) ;\
+	-e DOCKER_DAEMON_ARGS=--cluster-store=consul://$(LOCAL_IP_ENV):8500 \
+	-tid tomdee/dind-ux) ;\
 	docker exec -ti $$ID bash;\
 	docker rm -f $$ID
 
 semaphore:
 	# Install deps
 	pip install sh nose-timer nose netaddr
+
 	# "Upgrade" docker
 	docker version
-	#sudo stop docker
-	#sudo curl https://github.com/projectcalico/calico-docker/releases/download/v0.5.3/docker -o /usr/bin/docker
-	#sudo start docker
-	curl -sSL https://experimental.docker.com/ | sudo sh
+	sudo stop docker
+	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
+	sudo start docker
+	#curl -sSL https://experimental.docker.com/ | sudo sh
 	docker version
+
 	#Run the STs
 	make st
 
