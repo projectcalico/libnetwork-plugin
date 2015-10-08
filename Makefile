@@ -94,13 +94,15 @@ create-dind:
 semaphore:
 	# Install deps
 	pip install sh nose-timer nose netaddr
+
 	# "Upgrade" docker
 	docker version
 	sudo stop docker
-	sudo curl https://transfer.sh/bwPjC/docker -o /usr/bin/docker
+	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
 	sudo start docker
 	#curl -sSL https://experimental.docker.com/ | sudo sh
 	docker version
+
 	#Run the STs
 	make st
 
