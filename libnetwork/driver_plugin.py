@@ -218,14 +218,23 @@ def delete_network():
     json_data = request.get_json(force=True)
     app.logger.debug("DeleteNetwork JSON=%s", json_data)
 
+    network_id = json_data["NetworkID"]
+
     # Remove the network. We don't raise an error if the profile is still
     # being used by endpoints. We assume libnetwork will enforce this.
     # From https://github.com/docker/libnetwork/blob/master/docs/design.md
     #   LibNetwork will not allow the delete to proceed if there are any
     #   existing endpoints attached to the Network.
-    network_id = json_data["NetworkID"]
     client.remove_profile(network_id)
     app.logger.info("Removed profile %s", network_id)
+
+    # Remove the pool that was created for this network.
+    json_data = client.get_network(network_id)
+    for version in (4, 6):
+        if json_data["IPv%sData" % version]:
+            pool = IPNetwork(json_data["IPv%sData" % version][0]['Pool'])
+            client.remove_ip_pool(version, pool)
+            app.logger.info("Removed pool %s", pool)
 
     # Clean up the stored network data.
     client.remove_network(network_id)
