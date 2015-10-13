@@ -73,15 +73,22 @@ class TestPlugin(unittest.TestCase):
         self.assertDictEqual(json.loads(rv.data), {})
 
 
+    @patch("libnetwork.driver_plugin.client.remove_ip_pool", autospec=True)
+    @patch("libnetwork.driver_plugin.client.get_network", autospec=True, return_value=None)
     @patch("libnetwork.driver_plugin.client.remove_profile", autospec=True)
-    def test_delete_network(self, m_remove):
+    def test_delete_network(self, m_remove, m_get_network, m_remove_pool):
         """
         Test the delete_network hook correctly removes the etcd data and
         returns the correct response.
         """
+        m_get_network.return_value = {"NetworkID": TEST_NETWORK_ID,
+                                      "IPv4Data":[{"Pool": "6.5.4.3/21"}],
+                                      "IPv6Data":[]}
+
         rv = self.app.post('/NetworkDriver.DeleteNetwork',
                            data='{"NetworkID": "%s"}' % TEST_NETWORK_ID)
         m_remove.assert_called_once_with(TEST_NETWORK_ID)
+        m_remove_pool.assert_called_once_with(4, IPNetwork("6.5.4.3/21"))
         self.assertDictEqual(json.loads(rv.data), {})
 
     @patch("libnetwork.driver_plugin.client.remove_profile", autospec=True)
@@ -206,7 +213,7 @@ class TestPlugin(unittest.TestCase):
 
 
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True, return_value=None)
-    def test_create_endpoint_missing_network(self, m_get_network):
+    def test_create_endpoint_missing_network(self, _):
         """
         Test the create_endpoint hook behavior when missing network data.
         """
@@ -221,7 +228,6 @@ class TestPlugin(unittest.TestCase):
                                   u"exist Endpoint ID: TEST_ENDPOINT_ID "
                                   u"Network ID: TEST_NETWORK_ID"}
         self.assertDictEqual(json.loads(rv.data), expected_data)
-
 
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True)
     @patch("libnetwork.driver_plugin.client.set_endpoint", autospec=True)
