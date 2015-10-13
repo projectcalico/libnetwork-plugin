@@ -57,14 +57,17 @@ busybox.tar:
 	docker pull busybox:latest
 	docker save --output busybox.tar busybox:latest
 
-calico-node.tar: caliconode.created
-	docker save --output calico-node.tar calico/node-libnetwork
+calico-node.tar:
+	docker save --output calico-node.tar calico/node
 
-st: calicoctl busybox.tar calico-node.tar run-etcd run-consul
+calico-node-libnetwork.tar: caliconode.created
+	docker save --output calico-node-libnetwork.tar calico/node-libnetwork
+
+st: calicoctl busybox.tar calico-node.tar calico-node-libnetwork.tar run-etcd run-consul
 	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
-fast-st: busybox.tar calico-node.tar run-etcd run-consul
+fast-st: busybox.tar calico-node.tar calico-node-libnetwork.tar run-etcd run-consul
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-plugin: node
@@ -93,7 +96,7 @@ create-dind:
 	@echo "docker load --input /code/calico-node.tar"
 	@ID=$$(docker run --privileged -v `pwd`:/code \
 	-e DOCKER_DAEMON_ARGS=--cluster-store=consul://$(LOCAL_IP_ENV):8500 \
-	-tid tomdee/dind-ux) ;\
+	-tid tomdee/dind-ipam) ;\
 	docker exec -ti $$ID bash;\
 	docker rm -f $$ID
 
@@ -102,12 +105,13 @@ semaphore:
 	pip install sh nose-timer nose netaddr
 
 	# "Upgrade" docker
-	docker version
-	sudo stop docker
-	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
-	sudo start docker
+#	docker version
+#	sudo stop docker
+#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
+#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
+#	sudo start docker
 	#curl -sSL https://experimental.docker.com/ | sudo sh
-	docker version
+#	docker version
 
 	#Run the STs
 	make st
