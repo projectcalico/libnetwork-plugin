@@ -15,7 +15,9 @@ import uuid
 
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
+import logging
 
+logger = logging.getLogger(__name__)
 
 class TestMainline(TestBase):
     def test_mainline(self):

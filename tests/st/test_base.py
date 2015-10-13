@@ -15,7 +15,14 @@ import subprocess
 from unittest import TestCase
 
 from tests.st.utils.utils import get_ip
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+#Disable spammy logging from the sh module
+sh_logger = logging.getLogger("sh")
+sh_logger.setLevel(level=logging.CRITICAL)
 
 class TestBase(TestCase):
     """

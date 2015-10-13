@@ -19,8 +19,10 @@ from netaddr import IPAddress
 from utils import retry_until_success
 from tests.st.utils.network import DockerNetwork
 from tests.st.utils.exceptions import CommandExecError
-
+import logging
 NET_NONE = "none"
+
+logger = logging.getLogger(__name__)
 
 
 class Workload(object):
@@ -62,6 +64,7 @@ class Workload(object):
         args.append(image)
         command = ' '.join(args)
 
+        logger.info("Creating workload\n%s", command)
         host.execute(command)
 
         version_key = "IPAddress"
