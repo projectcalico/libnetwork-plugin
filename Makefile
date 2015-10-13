@@ -53,21 +53,21 @@ ut-circle: calicobuild.created
 	--with-xunit --xunit-file=/circle_output/output.xml; RC=$$?;\
 	[[ ! -z "$$COVERALLS_REPO_TOKEN" ]] && coveralls || true; exit $$RC'
 
-busybox.tar:
+busybox.tgz:
 	docker pull busybox:latest
-	docker save --output busybox.tar busybox:latest
+	docker save busybox:latest | gzip -c > busybox.tgz
 
-calico-node.tar:
-	docker save --output calico-node.tar calico/node
+calico-node.tgz:
+	docker save calico/node:latest | gzip -c > calico-node.tgz
 
-calico-node-libnetwork.tar: caliconode.created
-	docker save --output calico-node-libnetwork.tar calico/node-libnetwork
+calico-node-libnetwork.tgz: caliconode.created
+	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
 
-st: calicoctl busybox.tar calico-node.tar calico-node-libnetwork.tar run-etcd run-consul
+st: calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
-fast-st: busybox.tar calico-node.tar calico-node-libnetwork.tar run-etcd run-consul
+fast-st: busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-plugin: node
@@ -93,7 +93,7 @@ run-consul:
 
 create-dind:
 	@echo "You may want to load calico-node with"
-	@echo "docker load --input /code/calico-node.tar"
+	@echo "docker load --input /code/calico-node.tgz"
 	@ID=$$(docker run --privileged -v `pwd`:/code \
 	-e DOCKER_DAEMON_ARGS=--cluster-store=consul://$(LOCAL_IP_ENV):8500 \
 	-tid tomdee/dind-ipam) ;\
@@ -119,5 +119,5 @@ semaphore:
 clean:
 	-rm -f *.created
 	-rm -f calicoctl
-	-rm -f *.tar
+	-rm -f *.tgz
 	-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker --rm martin/docker-cleanup-volumes
