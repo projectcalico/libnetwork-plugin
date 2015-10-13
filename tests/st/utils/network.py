@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 
+logger = logging.getLogger(__name__)
 
 class DockerNetwork(object):
     """
@@ -40,26 +42,14 @@ class DockerNetwork(object):
 
         self.init_host = host
         """The host which created the network."""
-
-        args = [
-            "docker", "network", "create",
-            "--driver=%s" % driver,
-            name,
-        ]
-        command = ' '.join(args)
-        self.uuid = host.execute(command).rstrip()
+        self.uuid = host.execute("docker network create -d %s %s" % (driver, name))
 
     def delete(self):
         """
         Delete the network.
         :return: Nothing
         """
-        args = [
-            "docker", "network", "rm",
-            self.name,
-        ]
-        command = ' '.join(args)
-        self.init_host.execute(command).rstrip()
+        self.init_host.execute("docker network rm " + self.name)
 
     def __str__(self):
         return self.name
