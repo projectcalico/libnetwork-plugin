@@ -46,6 +46,11 @@ class DockerHost(object):
         self.ip = log_and_run("docker inspect --format "
                               "'{{ .NetworkSettings.IPAddress }}' %s" % self.name)
 
+        # Make sure docker is up
+        docker_ps = partial(self.execute, "docker ps")
+        retry_until_success(docker_ps, ex_class=CalledProcessError,
+                            retries=10)
+
         self.execute("gunzip -c /code/calico-node.tgz | docker load")
         self.execute("gunzip -c /code/busybox.tgz | docker load")
         self.execute("gunzip -c /code/calico-node-libnetwork.tgz | docker load")
