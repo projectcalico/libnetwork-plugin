@@ -64,11 +64,11 @@ calico-node.tgz:
 calico-node-libnetwork.tgz: caliconode.created
 	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
 
-st: calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
+st: docker calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
-fast-st: busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
+fast-st: docker busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-plugin: node
@@ -95,29 +95,25 @@ run-consul:
 create-dind:
 	@echo "You may want to load calico-node with"
 	@echo "docker load --input /code/calico-node.tgz"
-	@ID=$$(docker run --privileged -v `pwd`:/code \
-	-e DOCKER_DAEMON_ARGS=--cluster-store=consul://$(LOCAL_IP_ENV):8500 \
-	-tid tomdee/dind-ipam) ;\
-	docker exec -ti $$ID bash;\
+	@ID=$$(docker run --privileged -v `pwd`:/code -v `pwd`/docker:/usr/local/bin/docker \
+	-tid calico/dind:libnetwork --cluster-store=consul://$(LOCAL_IP_ENV):8500) ;\
+	docker exec -ti $$ID sh;\
 	docker rm -f $$ID
 
-semaphore:
+docker:
+	# Download the latest docker to test.
+	curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o docker
+	chmod +x docker
+
+semaphore: docker
 	# Install deps
 	pip install sh nose-timer nose netaddr
-
-	# "Upgrade" docker
-#	docker version
-#	sudo stop docker
-#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
-#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
-#	sudo start docker
-	#curl -sSL https://experimental.docker.com/ | sudo sh
-#	docker version
 
 	#Run the STs
 	make st
 
 clean:
+	-rm -f docker
 	-rm -f *.created
 	-rm -f calicoctl
 	-rm -f *.tgz

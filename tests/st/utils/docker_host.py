@@ -38,9 +38,10 @@ class DockerHost(object):
         self._cleaned = False
 
         log_and_run("docker rm -f %s || true" % self.name)
-        log_and_run("docker run --privileged -v %s:/code --name %s "
-                    "-e DOCKER_DAEMON_ARGS=--cluster-store=consul://%s:8500 "
-                    "-tid tomdee/dind-ipam" %
+        log_and_run("docker run --privileged -tid"
+                    "-v `pwd`/docker:/usr/local/bin/docker "
+                    "-v %s:/code --name %s "
+                    "calico/dind:libnetwork  --cluster-store=consul://%s:8500" %
                     (os.getcwd(), self.name, utils.get_ip()))
 
         self.ip = log_and_run("docker inspect --format "
@@ -68,8 +69,8 @@ class DockerHost(object):
         :return: The output from the command with leading and trailing
         whitespace removed.
         """
-        command = self.escape_bash_single_quotes(command)
-        command = "docker exec -it %s bash -c '%s'" % (self.name,
+        command = self.escape_shell_single_quotes(command)
+        command = "docker exec -it %s sh -c '%s'" % (self.name,
                                                        command)
 
         return log_and_run(command)
@@ -230,15 +231,15 @@ class DockerHost(object):
         return DockerNetwork(self, name, driver=driver)
 
     @staticmethod
-    def escape_bash_single_quotes(command):
+    def escape_shell_single_quotes(command):
         """
-        Escape single quotes in bash string strings.
+        Escape single quotes in shell strings.
 
         Replace ' (single-quote) in the command with an escaped version.
         This needs to be done, since the command is passed to "docker
         exec" to execute and needs to be single quoted.
         Strictly speaking, it's impossible to escape single-quoted
-        bash script, but there is a workaround - end the single quoted
+        shell script, but there is a workaround - end the single quoted
          string, then concatenate a double quoted single quote,
         and finally re-open the string with a single quote. Because
         this is inside a single quoted python, string, the single
