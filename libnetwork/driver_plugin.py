@@ -100,9 +100,9 @@ def create_network():
 
     # Create a calico Pool for the CNM pool that was passed in.
     for version in (4, 6):
-        if json_data["IPv%sData" % version]:
-            client.add_ip_pool(version,
-                           IPPool(json_data["IPv%sData" % version][0]['Pool']))
+        ip_data = json_data["IPv%sData" % version]
+        if ip_data:
+            client.add_ip_pool(version, IPPool(ip_data[0]['Pool']))
 
     # Store off the JSON passed in on this request. It's required in later calls
     # - CreateEndpoint needs it for the gateway address.

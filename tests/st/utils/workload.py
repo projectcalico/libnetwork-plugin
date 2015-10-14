@@ -58,8 +58,8 @@ class Workload(object):
             network_command = "--net %s" % network
 
         command = "docker run -tid --name %s %s %s" % (name,
-                                                          network_command,
-                                                          image)
+                                                       network_command,
+                                                       image)
         host.execute(command)
 
         version_key = "IPAddress"

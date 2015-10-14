@@ -32,13 +32,13 @@ For the full list of recommended options for use in production, see [start.sh](s
  
 For testing out changes, add the `--reload` flag or use `make run-plugin-local` 
 
-Install the dependencies from requriements.txt using `pip install -r requirements.txt`
+Install the dependencies from requirements.txt using `pip install -r requirements.txt`
 
 ## Troubleshooting
 ### Logging
 Logs are sent to STDOUT. If using Docker these can be viewed with the `docker logs` command.
 #### Changing the log level
-This currently requires a rebuild. Change the line towards the top of the [plugin code](https://github.com/projectcalico/libnetwork-plugin/blob/master/libnetwork/docker_plugin.py#L67)
+This currently requires a rebuild. Change the line towards the top of the [plugin code](https://github.com/projectcalico/libnetwork-plugin/blob/master/libnetwork/driver_plugin.py)
 
 ## Performance
 ### Datastore Interactions
@@ -49,7 +49,7 @@ Operation      | Reads | Writes| Deletes| Notes
 CreateNetwork  | 0     | 4 (5 if IPv4 and IPv6) | 0      | 2 for creating profile (tags and rules), 1 per IP Pool, and 1 to store the request JSON
 CreateEndpoint | 1     | 1     | 0      | Read CreateNetwork JSON and write Endpoint
 Join None      | 0     | 0     | 0      | None
-DeleteNetwork  | 0     | 0     | 2      | Delete profile and stored CreateNetwork JSON
+DeleteNetwork  | 1     | 0     | 3 (4 if IPv4 and IPv6)     | Delete profile, pool and stored CreateNetwork JSON
 DeleteEndpoint | 0     | 0     | 1      | Delete endpoint
 Leave          | 0     | 0     | 0      | None
 
