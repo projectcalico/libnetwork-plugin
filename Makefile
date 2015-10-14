@@ -58,6 +58,7 @@ busybox.tgz:
 	docker save busybox:latest | gzip -c > busybox.tgz
 
 calico-node.tgz:
+	docker pull calico/node:latest
 	docker save calico/node:latest | gzip -c > calico-node.tgz
 
 calico-node-libnetwork.tgz: caliconode.created
