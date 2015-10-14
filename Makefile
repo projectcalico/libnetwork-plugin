@@ -64,11 +64,11 @@ calico-node.tgz:
 calico-node-libnetwork.tgz: caliconode.created
 	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
 
-st: docker calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
+st: docker calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
 	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
-fast-st: docker busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
+fast-st: docker busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-plugin: node
@@ -85,18 +85,11 @@ run-etcd:
 	--advertise-client-urls "http://$(LOCAL_IP_ENV):2379,http://127.0.0.1:4001" \
 	--listen-client-urls "http://0.0.0.0:2379,http://0.0.0.0:4001"
 
-run-consul:
-	@-docker rm -f calico-consul
-	docker run --detach \
-	--net=host \
-	--name calico-consul progrium/consul \
-	-server -bootstrap-expect 1 -client $(LOCAL_IP_ENV)
-
 create-dind:
 	@echo "You may want to load calico-node with"
 	@echo "docker load --input /code/calico-node.tgz"
 	@ID=$$(docker run --privileged -v `pwd`:/code -v `pwd`/docker:/usr/local/bin/docker \
-	-tid calico/dind:libnetwork --cluster-store=consul://$(LOCAL_IP_ENV):8500) ;\
+	-tid calico/dind:libnetwork --cluster-store=etcd://$(LOCAL_IP_ENV):2379) ;\
 	docker exec -ti $$ID sh;\
 	docker rm -f $$ID
 

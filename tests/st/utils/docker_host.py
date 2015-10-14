@@ -41,7 +41,7 @@ class DockerHost(object):
         log_and_run("docker run --privileged -tid"
                     "-v `pwd`/docker:/usr/local/bin/docker "
                     "-v %s:/code --name %s "
-                    "calico/dind:libnetwork  --cluster-store=consul://%s:8500" %
+                    "calico/dind:libnetwork  --cluster-store=etcd://%s:2379" %
                     (os.getcwd(), self.name, utils.get_ip()))
 
         self.ip = log_and_run("docker inspect --format "
