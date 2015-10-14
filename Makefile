@@ -53,22 +53,29 @@ ut-circle: calicobuild.created
 	--with-xunit --xunit-file=/circle_output/output.xml; RC=$$?;\
 	[[ ! -z "$$COVERALLS_REPO_TOKEN" ]] && coveralls || true; exit $$RC'
 
-busybox.tar:
+busybox.tgz:
 	docker pull busybox:latest
-	docker save --output busybox.tar busybox:latest
+	docker save busybox:latest | gzip -c > busybox.tgz
 
-calico-node.tar: caliconode.created
-	docker save --output calico-node.tar calico/node-libnetwork
+calico-node.tgz:
+	docker pull calico/node:latest
+	docker save calico/node:latest | gzip -c > calico-node.tgz
 
-st: calicoctl busybox.tar calico-node.tar run-etcd run-consul
+calico-node-libnetwork.tgz: caliconode.created
+	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
+
+st: calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	./calicoctl checksystem --fix
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
 
-fast-st: busybox.tar calico-node.tar run-etcd run-consul
+fast-st: busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd run-consul
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
-run-plugin:
-	docker run -ti --uts="host" -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
+run-plugin: node
+	docker run -ti --privileged --net=host -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
+
+run-plugin-local:
+	sudo gunicorn --reload -b unix:///run/docker/plugins/calico.sock libnetwork.driver_plugin:app
 
 run-etcd:
 	@-docker rm -f calico-etcd
@@ -87,10 +94,10 @@ run-consul:
 
 create-dind:
 	@echo "You may want to load calico-node with"
-	@echo "docker load --input /code/calico-node.tar"
+	@echo "docker load --input /code/calico-node.tgz"
 	@ID=$$(docker run --privileged -v `pwd`:/code \
 	-e DOCKER_DAEMON_ARGS=--cluster-store=consul://$(LOCAL_IP_ENV):8500 \
-	-tid tomdee/dind-ux) ;\
+	-tid tomdee/dind-ipam) ;\
 	docker exec -ti $$ID bash;\
 	docker rm -f $$ID
 
@@ -99,12 +106,13 @@ semaphore:
 	pip install sh nose-timer nose netaddr
 
 	# "Upgrade" docker
-	docker version
-	sudo stop docker
-	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
-	sudo start docker
+#	docker version
+#	sudo stop docker
+#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
+#	sudo curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o /usr/bin/docker
+#	sudo start docker
 	#curl -sSL https://experimental.docker.com/ | sudo sh
-	docker version
+#	docker version
 
 	#Run the STs
 	make st
@@ -112,5 +120,5 @@ semaphore:
 clean:
 	-rm -f *.created
 	-rm -f calicoctl
-	-rm -f *.tar
+	-rm -f *.tgz
 	-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker --rm martin/docker-cleanup-volumes

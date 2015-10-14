@@ -40,25 +40,3 @@ class LibnetworkTests(TestBase):
         with calicoctl endpoint commands.
         """
         pass
-
-    def test_pool_ip_assignment(self):
-        """
-        Test that pools can be used to control IP assignment.
-
-        Remove default IPv4 pool.
-        Add a new IPv4 pool.
-        Create a new container.
-        Assert container receives IP from new IPv4 pool.
-        """
-        with DockerHost('host', dind=False) as host:
-            # Remove default pool and add new pool
-            ipv4_pool = "10.0.1.0/24"
-            host.calicoctl("pool remove %s" % DEFAULT_IPV4_POOL_CIDR)
-            host.calicoctl("pool add %s" % ipv4_pool)
-
-            # Setup network and add a container to the network
-            network = host.create_network(str(uuid.uuid4()))
-            workload = host.create_workload("workload", network=network)
-
-            # Assert the workload's ip came from the new IP pool
-            self.assertIn(workload.ip, IPNetwork(ipv4_pool))

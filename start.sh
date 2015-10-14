@@ -3,7 +3,7 @@ exec 2>&1
 GUNICORN=/usr/bin/gunicorn
 ROOT=/calico_containers
 PID=/var/run/gunicorn.pid
-APP=libnetwork_plugin.docker_plugin:app
+APP=libnetwork_plugin.driver_plugin:app
 
 if [ -f $PID ]; then rm $PID; fi
 

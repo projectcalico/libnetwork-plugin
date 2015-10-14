@@ -15,6 +15,7 @@ from functools import partial
 import uuid
 
 from netaddr import IPAddress
+import sys
 
 from utils import retry_until_success
 from tests.st.utils.network import DockerNetwork
@@ -50,30 +51,24 @@ class Workload(object):
         self.host = host
         self.name = name
 
-        args = [
-            "docker", "run",
-            "--tty",
-            "--interactive",
-            "--detach",
-            "--name", name,
-        ]
+        network_command = ""
         if network:
             if network is not NET_NONE:
                 assert isinstance(network, DockerNetwork)
-            args.append("--net %s" % network)
-        args.append(image)
-        command = ' '.join(args)
+            network_command = "--net %s" % network
 
-        logger.info("Creating workload\n%s", command)
+        command = "docker run -tid --name %s %s %s" % (name,
+                                                          network_command,
+                                                          image)
         host.execute(command)
 
         version_key = "IPAddress"
         # TODO Use version_key = "GlobalIPv6Address" for IPv6
 
-        self.ip = host.execute("docker inspect --format "
-                               "'{{ .NetworkSettings.%s }}' %s" % (version_key,
-                                                                   name),
-                               ).rstrip()
+        ip_command = "docker inspect --format '{{ .NetworkSettings.%s }}' %s" % \
+                                                            (version_key, name)
+        self.ip = host.execute(ip_command)
+        logger.error(self.ip)
 
     def execute(self, command):
         """

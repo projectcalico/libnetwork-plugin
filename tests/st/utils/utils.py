@@ -11,11 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import socket
 from time import sleep
 import os
+from subprocess import check_output, STDOUT
+from subprocess import CalledProcessError
+from tests.st.utils.exceptions import CommandExecError
 
 LOCAL_IP_ENV = "MY_IP"
+logger = logging.getLogger(__name__)
 
 
 def get_ip():
@@ -34,6 +39,16 @@ def get_ip():
         ip = s.getsockname()[0]
         s.close()
     return ip
+
+
+def log_and_run(command):
+    try:
+        logger.info(command)
+        return check_output(command, shell=True, stderr=STDOUT).rstrip()
+    except CalledProcessError as e:
+            # Wrap the original exception with one that gives a better error
+            # message (including command output).
+            raise CommandExecError(e)
 
 
 def retry_until_success(function, retries=10, ex_class=Exception):

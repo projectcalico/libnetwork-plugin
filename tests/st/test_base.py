@@ -17,7 +17,7 @@ from unittest import TestCase
 from tests.st.utils.utils import get_ip
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 #Disable spammy logging from the sh module
