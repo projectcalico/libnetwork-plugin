@@ -16,8 +16,8 @@ import uuid
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
 from tests.st.utils.exceptions import CommandExecError
-from tests.st.utils.utils import check_network, check_profile, \
-    check_number_endpoints, get_profile_name
+from tests.st.utils.utils import assert_network, assert_profile, \
+    assert_number_endpoints, get_profile_name
 
 
 class MultiHostMainline(TestBase):
@@ -40,11 +40,11 @@ class MultiHostMainline(TestBase):
             network = host1.create_network(str(uuid.uuid4()))
 
             # Assert that the network can be seen on host2
-            check_network(host2, network)
+            assert_network(host2, network)
 
             # Assert that the profile has been created for the network
             profile_name = get_profile_name(host1, network)
-            self.assertTrue(check_profile(host1, profile_name))
+            assert_profile(host1, profile_name)
 
             # Create two hosts
             workload_host1 = host1.create_workload("workload1",
@@ -53,8 +53,8 @@ class MultiHostMainline(TestBase):
                                                    network=network)
 
             # Assert that endpoints are in Calico
-            check_number_endpoints(host1, 1)
-            check_number_endpoints(host2, 1)
+            assert_number_endpoints(host1, 1)
+            assert_number_endpoints(host2, 1)
 
             # Assert that workloads can communicate with each other
             workload_host1.assert_can_ping(workload_host2.ip, retries=5)
@@ -71,9 +71,9 @@ class MultiHostMainline(TestBase):
             # Disconnect (or "detach" or "leave") the endpoints
             # Assert that the endpoints are removed from calico and can't ping
             network.disconnect(host1, workload_host1)
-            check_number_endpoints(host1, 0)
+            assert_number_endpoints(host1, 0)
             network.disconnect(host2, workload_host2)
-            check_number_endpoints(host2, 0)
+            assert_number_endpoints(host2, 0)
             workload_host1.assert_cant_ping(workload_host2.ip, retries=5)
 
             # Remove the workloads, so the endpoints can be unpublished, then
@@ -83,7 +83,7 @@ class MultiHostMainline(TestBase):
 
             # Remove the network and assert profile is removed
             network.delete()
-            self.assertFalse(check_profile(host1, profile_name))
+            self.assertRaises(AssertionError, assert_profile, host1, profile_name)
 
             # TODO - Remove this calico node
 

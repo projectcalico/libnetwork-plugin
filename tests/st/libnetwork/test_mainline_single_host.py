@@ -16,7 +16,7 @@ import uuid
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
 import logging
-from tests.st.utils.utils import check_number_endpoints, check_profile, \
+from tests.st.utils.utils import assert_number_endpoints, assert_profile, \
     get_profile_name
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,11 @@ class TestMainline(TestBase):
             workload2 = host.create_workload(str(uuid.uuid4()), network=network)
 
             # Assert that endpoints are in Calico
-            check_number_endpoints(host, 2)
+            assert_number_endpoints(host, 2)
 
             # Assert that the profile has been created for the network
             profile_name = get_profile_name(host, network)
-            self.assertTrue(check_profile(host, profile_name))
+            assert_profile(host, profile_name)
 
             # Allow network to converge
             # Check connectivity.
@@ -51,7 +51,7 @@ class TestMainline(TestBase):
             network.disconnect(host, workload1)
             network.disconnect(host, workload2)
             workload1.assert_cant_ping(workload2.ip, retries=5)
-            check_number_endpoints(host, 0)
+            assert_number_endpoints(host, 0)
 
             # Remove the endpoints on the host
             # TODO (assert IPs are released)
@@ -59,7 +59,6 @@ class TestMainline(TestBase):
 
             # Remove the network and assert profile is removed
             network.delete()
-            self.assertFalse(check_profile(host, profile_name))
+            self.assertRaises(AssertionError, assert_profile, host, profile_name)
 
             # TODO - Remove this calico node
-

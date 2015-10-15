@@ -248,3 +248,16 @@ class DockerHost(object):
         :return: The escaped string
         """
         return command.replace('\'', '\'"\'"\'')
+
+    def get_hostname(self):
+        """
+        Get the hostname from Docker
+        The hostname is a randomly generated string.
+        Note, this function only works with a host with dind enabled.
+        Raises an exception if dind is not enabled.
+
+        :param host: DockerHost object
+        :return: hostname of DockerHost
+        """
+        command = "docker inspect --format {{.Config.Hostname}} %s" % self.name
+        return log_and_run(command)

@@ -56,12 +56,8 @@ class DockerNetwork(object):
         Disconnect container from network
         :return: Nothing
         """
-        args = [
-            "docker", "network", "disconnect",
-            str(self.name), str(container)
-        ]
-        command = ' '.join(args)
-        host.execute(command).rstrip()
+        host.execute("docker network disconnect %s %s" %
+                     (self.name, str(container)))
 
     def __str__(self):
         return self.name

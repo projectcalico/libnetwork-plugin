@@ -20,7 +20,6 @@ from subprocess import CalledProcessError
 from tests.st.utils.exceptions import CommandExecError
 import re
 import json
-from sh import docker
 
 LOCAL_IP_ENV = "MY_IP"
 logger = logging.getLogger(__name__)
@@ -77,7 +76,7 @@ def retry_until_success(function, retries=10, ex_class=Exception):
             # Successfully ran the function
             return result
 
-def check_number_endpoints(host, expected):
+def assert_number_endpoints(host, expected):
     """
     Check that a host has the expected number of endpoints in Calico
     Parses the "calicoctl endpoint show" command for number of endpoints.
@@ -88,15 +87,14 @@ def check_number_endpoints(host, expected):
     :param expected: int, number of expected endpoints
     :return:
     """
-    hostname = get_hostname(host)
+    hostname = host.get_hostname()
     output = host.calicoctl("endpoint show")
     lines = output.split("\n")
     actual = 0
 
     for line in lines:
         columns = re.split("\s*\|\s*", line.strip())
-        if len(columns) > 1:
-            if columns[1] == hostname:
+        if len(columns) > 1 and columns[1] == hostname:
                 actual = columns[4]
                 break
 
@@ -105,7 +103,7 @@ def check_number_endpoints(host, expected):
               "Expected: %s; Actual: %s" % (expected, actual)
         raise AssertionError(msg)
 
-def check_profile(host, profile_name):
+def assert_profile(host, profile_name):
     """
     Check that profile is registered in Calico
     Parse "calicoctl profile show" for the given profilename
@@ -120,11 +118,12 @@ def check_profile(host, profile_name):
 
     for line in lines:
         columns = re.split("\s*\|\s*", line.strip())
-        if len(columns) > 1:
-            if profile_name == columns[1]:
+        if len(columns) > 1 and profile_name == columns[1]:
                 found = True
+                break
 
-    return found
+    if not found:
+        raise AssertionError("Profile %s not found in Calico" % profile_name)
 
 def get_profile_name(host, network):
     """
@@ -140,22 +139,7 @@ def get_profile_name(host, network):
     info = json.loads(info_raw)
     return info["id"]
 
-def get_hostname(host):
-    """
-    Get the hostname from Docker
-    The hostname is a randomly generated string.
-    Note, this function only works with a host with dind enabled.
-    Raises an exception if dind is not enabled.
-
-    :param host: DockerHost object
-    :return: hostname of DockerHost
-    """
-    hostname = docker.inspect("--format",
-                              "{{ .Config.Hostname }}",
-                              "%s" % host.name)
-    return hostname.strip()
-
-def check_network(host, network):
+def assert_network(host, network):
     """
     Checks that the given network is in Docker
     Raises an exception if the network is not found
@@ -166,6 +150,5 @@ def check_network(host, network):
     """
     try:
         host.execute("docker network inspect %s" % network.name)
-    except Exception as e:
-        raise e
-
+    except CommandExecError:
+        raise AssertionError("Docker network %s not found" % network.name)
