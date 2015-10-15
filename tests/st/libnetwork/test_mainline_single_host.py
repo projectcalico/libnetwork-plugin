@@ -48,8 +48,8 @@ class TestMainline(TestBase):
 
             # Disconnect endpoints from the network
             # Assert can't ping and endpoints are removed from Calico
-            network.disconnect(workload1)
-            network.disconnect(workload2)
+            network.disconnect(host, workload1)
+            network.disconnect(host, workload2)
             workload1.assert_cant_ping(workload2.ip, retries=5)
             check_number_endpoints(host, 0)
 

@@ -51,7 +51,7 @@ class DockerNetwork(object):
         """
         self.init_host.execute("docker network rm " + self.name)
 
-    def disconnect(self, container):
+    def disconnect(self, host, container):
         """
         Disconnect container from network
         :return: Nothing
@@ -61,7 +61,7 @@ class DockerNetwork(object):
             str(self.name), str(container)
         ]
         command = ' '.join(args)
-        self.init_host.execute(command).rstrip()
+        host.execute(command).rstrip()
 
     def __str__(self):
         return self.name

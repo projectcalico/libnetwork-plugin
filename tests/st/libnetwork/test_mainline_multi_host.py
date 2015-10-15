@@ -64,17 +64,17 @@ class MultiHostMainline(TestBase):
             workload_host1.execute("ping -c 1 -W 1 workload2")
             workload_host2.execute("ping -c 1 -W 1 workload1")
 
-            # Disconnect (or "detach" or "leave") the endpoints
-            # Assert that the endpoints are removed from calico and can't ping
-            network.disconnect(workload_host1)
-            network.disconnect(workload_host2)
-            check_number_endpoints(host1, 0)
-            check_number_endpoints(host2, 0)
-            workload_host1.assert_cant_ping(workload_host2.ip, retries=5)
-
             # Test deleting the network. It will fail if there are any
             # endpoints connected still.
             self.assertRaises(CommandExecError, network.delete)
+
+            # Disconnect (or "detach" or "leave") the endpoints
+            # Assert that the endpoints are removed from calico and can't ping
+            network.disconnect(host1, workload_host1)
+            check_number_endpoints(host1, 0)
+            network.disconnect(host2, workload_host2)
+            check_number_endpoints(host2, 0)
+            workload_host1.assert_cant_ping(workload_host2.ip, retries=5)
 
             # Remove the workloads, so the endpoints can be unpublished, then
             # the delete should succeed.

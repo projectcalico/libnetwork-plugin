@@ -150,10 +150,6 @@ def get_hostname(host):
     :param host: DockerHost object
     :return: hostname of DockerHost
     """
-    if not host.dind:
-        msg = "This function is only supported by hosts with dind enabled"
-        raise Exception(msg)
-
     hostname = docker.inspect("--format",
                               "{{ .Config.Hostname }}",
                               "%s" % host.name)
