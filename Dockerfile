@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM gliderlabs/alpine:latest
+MAINTAINER Tom Denham <tom@projectcalico.org>
 
 COPY requirements.txt /
 
