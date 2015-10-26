@@ -269,6 +269,22 @@ def leave():
     return jsonify({})
 
 
+@app.route('/NetworkDriver.DiscoverNew', methods=['POST'])
+def discover_new():
+    json_data = request.get_json(force=True)
+    app.logger.debug("DiscoverNew JSON=%s", json_data)
+    app.logger.debug("DiscoverNew response JSON=%s", "{}")
+    return jsonify({})
+
+
+@app.route('/NetworkDriver.DiscoverDelete', methods=['POST'])
+def discover_delete():
+    json_data = request.get_json(force=True)
+    app.logger.debug("DiscoverNew JSON=%s", json_data)
+    app.logger.debug("DiscoverDelete response JSON=%s", "{}")
+    return jsonify({})
+
+
 def remove_veth(name):
     """
     Best effort removal of veth, logging if removal fails.
