@@ -137,7 +137,10 @@ def get_profile_name(host, network):
     """
     info_raw = host.execute("docker network inspect %s" % network.name)
     info = json.loads(info_raw)
-    return info["id"]
+
+    # Network inspect returns a list of dicts for each network being inspected.
+    # We are only inspecting 1, so use the first entry.
+    return info[0]["id"]
 
 def assert_network(host, network):
     """

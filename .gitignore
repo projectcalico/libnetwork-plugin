@@ -13,3 +13,9 @@ routereflector.tar
 calicobuild.created
 caliconode.created
 calico_containers/pycalico.egg-info/
+busybox.tgz
+calico-node-libnetwork.tgz
+calico-node.tgz
+calicoctl
+docker
+
