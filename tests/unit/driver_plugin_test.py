@@ -283,6 +283,31 @@ class TestPlugin(unittest.TestCase):
             # Reset the Mocks before continuing.
             m_set.reset_mock()
 
+    def test_discover_new(self):
+        """
+        Test discover_new returns the correct data.
+        """
+        rv = self.app.post('/NetworkDriver.DiscoverNew',
+                           data='{"DiscoveryType": 1,'
+                                 '"DiscoveryData": {'
+                                    '"Address": "thisaddress",'
+                                    '"self": true'
+                                  '}'
+                                '}')
+        self.assertDictEqual(json.loads(rv.data), {})
+
+    def test_discover_delete(self):
+        """
+        Test discover_delete returns the correct data.
+        """
+        rv = self.app.post('/NetworkDriver.DiscoverDelete',
+                           data='{"DiscoveryType": 1,'
+                                 '"DiscoveryData": {'
+                                    '"Address": "thisaddress",'
+                                    '"self": true'
+                                  '}'
+                                '}')
+        self.assertDictEqual(json.loads(rv.data), {})
 
     @patch("pycalico.netns.remove_veth", autospec=True, side_effect=CalledProcessError(2, "test"))
     def test_remove_veth_fail(self, m_remove):
@@ -294,3 +319,4 @@ class TestPlugin(unittest.TestCase):
 
         driver_plugin.remove_veth(name)
         m_remove.assert_called_once_with(name)
+

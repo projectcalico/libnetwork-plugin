@@ -46,6 +46,8 @@ These don't include interactions from the Docker daemon or felix. These are inte
 
 Operation      | Reads | Writes| Deletes| Notes
 ---------------|-------|-------|--------|------
+DiscoverNew    | 0     | 0     | 0      | None
+DiscoverDelete | 0     | 0     | 0      | None
 CreateNetwork  | 0     | 4 (5 if IPv4 and IPv6) | 0      | 2 for creating profile (tags and rules), 1 per IP Pool, and 1 to store the request JSON
 CreateEndpoint | 1     | 1     | 0      | Read CreateNetwork JSON and write Endpoint
 Join None      | 0     | 0     | 0      | None
