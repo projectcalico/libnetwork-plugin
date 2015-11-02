@@ -17,29 +17,41 @@ from time import sleep
 import os
 from subprocess import check_output, STDOUT
 from subprocess import CalledProcessError
-from tests.st.utils.exceptions import CommandExecError
+from exceptions import CommandExecError
 import re
 import json
+from pycalico.util import get_host_ips
 
 LOCAL_IP_ENV = "MY_IP"
+LOCAL_IPv6_ENV = "MY_IPv6"
 logger = logging.getLogger(__name__)
 
 
-def get_ip():
+def get_ip(v6=False):
     """
     Return a string of the IP of the hosts interface.
     Try to get the local IP from the environment variables.  This allows
     testers to specify the IP address in cases where there is more than one
     configured IP address for the test system.
     """
-    try:
-        ip = os.environ[LOCAL_IP_ENV]
-    except KeyError:
-        # No env variable set; try to auto detect.
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
+    env = LOCAL_IPv6_ENV if v6 else LOCAL_IP_ENV
+    ip = os.environ.get(env)
+    if not ip:
+        try:
+            # No env variable set; try to auto detect.
+            socket_type = socket.AF_INET6 if v6 else socket.AF_INET
+            s = socket.socket(socket_type, socket.SOCK_DGRAM)
+            remote_ip = "2001:4860:4860::8888" if v6 else "8.8.8.8"
+            s.connect((remote_ip, 0))
+            ip = s.getsockname()[0]
+            s.close()
+        except BaseException:
+            # Failed to connect, just try to get the address from the interfaces
+            version = 6 if v6 else 4
+            ips = get_host_ips(version)
+            if ips:
+                ip = ips[0]
+
     return ip
 
 
@@ -76,6 +88,61 @@ def retry_until_success(function, retries=10, ex_class=Exception):
             # Successfully ran the function
             return result
 
+
+def check_bird_status(host, expected):
+    """
+    Check the BIRD status on a particular host to see if it contains the
+    expected BGP status.
+
+    :param host: The host object to check.
+    :param expected: A list of tuples containing:
+        (peertype, ip address, state)
+    where 'peertype' is one of "Global", "Mesh", "Node",  'ip address' is
+    the IP address of the peer, and state is the expected BGP state (e.g.
+    "Established" or "Idle").
+    """
+    output = host.calicoctl("status")
+    lines = output.split("\n")
+    for (peertype, ipaddr, state) in expected:
+        for line in lines:
+            # Status table format is of the form:
+            # +--------------+-------------------+-------+----------+-------------+
+            # | Peer address |     Peer type     | State |  Since   |     Info    |
+            # +--------------+-------------------+-------+----------+-------------+
+            # | 172.17.42.21 | node-to-node mesh |   up  | 16:17:25 | Established |
+            # | 10.20.30.40  |       global      | start | 16:28:38 |   Connect   |
+            # |  192.10.0.0  |   node specific   | start | 16:28:57 |   Connect   |
+            # +--------------+-------------------+-------+----------+-------------+
+            #
+            # Splitting based on | separators results in an array of the
+            # form:
+            # ['', 'Peer address', 'Peer type', 'State', 'Since', 'Info', '']
+            columns = re.split("\s*\|\s*", line.strip())
+            if len(columns) != 7:
+                continue
+
+            # Find the entry matching this peer.
+            if columns[1] == ipaddr and columns[2] == peertype:
+
+                # Check that the connection state is as expected.  We check
+                # that the state starts with the expected value since there
+                # may be additional diagnostic information included in the
+                # info field.
+                if columns[5].startswith(state):
+                    break
+                else:
+                    msg = "Error in BIRD status for peer %s:\n" \
+                          "Expected: %s; Actual: %s\n" \
+                          "Output:\n%s" % (ipaddr, state, columns[5],
+                                           output)
+                    raise AssertionError(msg)
+        else:
+            msg = "Error in BIRD status for peer %s:\n" \
+                  "Type: %s\n" \
+                  "Expected: %s\n" \
+                  "Output: \n%s" % (ipaddr, peertype, state, output)
+            raise AssertionError(msg)
+
 def assert_number_endpoints(host, expected):
     """
     Check that a host has the expected number of endpoints in Calico
@@ -85,7 +152,7 @@ def assert_number_endpoints(host, expected):
 
     :param host: DockerHost object
     :param expected: int, number of expected endpoints
-    :return:
+    :return: None
     """
     hostname = host.get_hostname()
     output = host.calicoctl("endpoint show")

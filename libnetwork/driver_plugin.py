@@ -161,7 +161,6 @@ def create_endpoint():
         ep.ipv6_gateway = gateway_net.ip
 
     client.set_endpoint(ep)
-
     app.logger.debug("CreateEndpoint response JSON=%s", {})
     return jsonify({})
 

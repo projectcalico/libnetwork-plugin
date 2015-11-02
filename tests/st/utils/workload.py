@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
-import uuid
+import logging
 
 from netaddr import IPAddress
-import sys
 
 from utils import retry_until_success
-from tests.st.utils.network import DockerNetwork
-from tests.st.utils.exceptions import CommandExecError
-import logging
+from network import DockerNetwork
+from exceptions import CommandExecError
 NET_NONE = "none"
 
 logger = logging.getLogger(__name__)
@@ -33,7 +31,7 @@ class Workload(object):
     These are the end-users containers that will run application-level
     software.
     """
-    def __init__(self, host, name, image="busybox", network=None):
+    def __init__(self, host, name, image="busybox", network="bridge"):
         """
         Create the workload and detect its IPs.
 
@@ -50,25 +48,13 @@ class Workload(object):
         """
         self.host = host
         self.name = name
-
-        network_command = ""
-        if network:
-            if network is not NET_NONE:
-                assert isinstance(network, DockerNetwork)
-            network_command = "--net %s" % network
-
-        command = "docker run -tid --name %s %s %s" % (name,
-                                                       network_command,
-                                                       image)
+        command = "docker run -tid --name %s --net %s %s" % (name,
+                                                             network,
+                                                             image)
         host.execute(command)
-
-        version_key = "IPAddress"
-        # TODO Use version_key = "GlobalIPv6Address" for IPv6
-
-        ip_command = "docker inspect --format '{{.NetworkSettings.Networks.%s.%s}}' %s" % \
-                                                            (network, version_key, name)
-        self.ip = host.execute(ip_command)
-        logger.error(self.ip)
+        self.ip = host.execute("docker inspect --format "
+                              "'{{.NetworkSettings.Networks.%s.IPAddress}}' %s"
+                               % (network, name))
 
     def execute(self, command):
         """
@@ -89,12 +75,16 @@ class Workload(object):
         The function raises a CommandExecError exception if the ping fails,
         or returns the output of the ping.
         """
-        version = IPAddress(ip).version
-        assert version in [4, 6]
-        if version == 4:
-            ping = "ping"
-        else:  # if version == 6:
-            ping = "ping6"
+        # Default to "ping"
+        ping = "ping"
+
+        try:
+            version = IPAddress(ip).version
+            assert version in [4, 6]
+            if version == 6:
+                ping = "ping6"
+        except BaseException:
+            pass
 
         args = [
             ping,

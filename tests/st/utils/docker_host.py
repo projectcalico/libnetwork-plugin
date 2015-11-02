@@ -13,15 +13,13 @@
 # limitations under the License.
 import logging
 import os
-from functools import partial
 from subprocess import CalledProcessError
+from functools import partial
 
-from tests.st.utils import utils
-from tests.st.utils.utils import retry_until_success, get_ip, log_and_run
+from utils import get_ip, log_and_run, retry_until_success
 from workload import Workload
 from network import DockerNetwork
 
-CALICO_DRIVER_SOCK = "/run/docker/plugins/calico.sock"
 logger = logging.getLogger(__name__)
 
 class DockerHost(object):
@@ -29,34 +27,41 @@ class DockerHost(object):
     A host container which will hold workload containers to be networked by
     Calico.
     """
-    def __init__(self, name):
+    def __init__(self, name, start_calico=True, dind=True,
+                 additional_docker_options="",
+                 post_docker_commands=["docker load --input /code/calico_containers/calico-node.tar",
+                                       "docker load --input /code/calico_containers/busybox.tar"]):
         self.name = name
+        self.dind = dind
         self.workloads = set()
 
         # This variable is used to assert on destruction that this object was
         # cleaned up.  If not used as a context manager, users of this object
         self._cleaned = False
 
-        log_and_run("docker rm -f %s || true" % self.name)
-        log_and_run("docker run --privileged -tid"
-                    "-v `pwd`/docker:/usr/local/bin/docker "
-                    "-v %s:/code --name %s "
-                    "calico/dind:latest  --cluster-store=etcd://%s:2379" %
-                    (os.getcwd(), self.name, utils.get_ip()))
+        if dind:
+            log_and_run("docker rm -f %s || true" % self.name)
+            log_and_run("docker run --privileged -tid "
+                        "-v %s/docker:/usr/local/bin/docker "
+                        "-v %s:/code --name %s "
+                        "calico/dind:latest docker daemon --storage-driver=aufs %s" %
+                    (os.getcwd(), os.getcwd(), self.name, additional_docker_options))
 
-        self.ip = log_and_run("docker inspect --format "
+            self.ip = log_and_run("docker inspect --format "
                               "'{{.NetworkSettings.Networks.bridge.IPAddress}}' %s" % self.name)
 
-        # Make sure docker is up
-        docker_ps = partial(self.execute, "docker ps")
-        retry_until_success(docker_ps, ex_class=CalledProcessError,
-                            retries=10)
+            # Make sure docker is up
+            docker_ps = partial(self.execute, "docker ps")
+            retry_until_success(docker_ps, ex_class=CalledProcessError,
+                                retries=10)
+            for command in post_docker_commands:
+                self.execute(command)
+        else:
+            self.ip = get_ip(v6=False)
+            self.ip6 = get_ip(v6=True)
 
-        self.execute("gunzip -c /code/calico-node.tgz | docker load")
-        self.execute("gunzip -c /code/busybox.tgz | docker load")
-        self.execute("gunzip -c /code/calico-node-libnetwork.tgz | docker load")
-
-        self.start_calico_node()
+        if start_calico:
+            self.start_calico_node()
 
     def execute(self, command):
         """
@@ -69,9 +74,10 @@ class DockerHost(object):
         :return: The output from the command with leading and trailing
         whitespace removed.
         """
-        command = self.escape_shell_single_quotes(command)
-        command = "docker exec -it %s sh -c '%s'" % (self.name,
-                                                       command)
+        if self.dind:
+            command = self.escape_shell_single_quotes(command)
+            command = "docker exec -it %s sh -c '%s'" % (self.name,
+                                                         command)
 
         return log_and_run(command)
 
@@ -88,14 +94,21 @@ class DockerHost(object):
         :return: The output from the command with leading and trailing
         whitespace removed.
         """
-        command = "/code/calicoctl " + command
+        if os.environ.get("CALICOCTL"):
+            calicoctl = os.environ["CALICOCTL"]
+        else:
+            if self.dind:
+                calicoctl = "/code/dist/calicoctl"
+            else:
+                calicoctl = "dist/calicoctl"
+
         etcd_auth = "ETCD_AUTHORITY=%s:2379" % get_ip()
         # Export the environment, in case the command has multiple parts, e.g.
         # use of | or ;
-        command = "export %s; %s" % (etcd_auth, command)
-        return self.execute(command)
+        calicoctl = "export %s; %s" % (etcd_auth, calicoctl)
+        return self.execute(calicoctl + " " + command)
 
-    def start_calico_node(self, as_num=None):
+    def start_calico_node(self, options=""):
         """
         Start calico in a container inside a host by calling through to the
         calicoctl node command.
@@ -103,28 +116,19 @@ class DockerHost(object):
         :param as_num: The AS Number for this node.  A value of None uses the
         inherited default value.
         """
-        args = ['node']
+        args = ['node', '--ip=%s' % self.ip]
         try:
             if self.ip6:
                 args.append('--ip6=%s' % self.ip6)
         except AttributeError:
             # No ip6 configured
             pass
-        if as_num:
-            args.append('--as=%s' % as_num)
+
+        args.append(options)
 
         cmd = ' '.join(args)
-        cmd += " --libnetwork"
         self.calicoctl(cmd)
 
-    def assert_driver_up(self):
-        """
-        Check that Calico Docker Driver is up by checking the existence of
-        the unix socket.
-        """
-        sock_exists = partial(self.execute,
-                              "[ -e %s ]" % CALICO_DRIVER_SOCK)
-        retry_until_success(sock_exists, ex_class=CalledProcessError)
 
     def remove_workloads(self):
         """
@@ -186,13 +190,20 @@ class DockerHost(object):
         volumes.
         :return:
         """
-        # For Docker-in-Docker, we need to remove all containers and
-        # all images...
-        self.remove_containers()
-        self.remove_images()
+        logger.info("# Cleaning up host %s", self.name)
+        if self.dind:
+            # For Docker-in-Docker, we need to remove all containers and
+            # all images...
+            self.remove_containers()
+            self.remove_images()
 
-        # ...and the outer container.
-        log_and_run("docker rm -f %s || true" % self.name)
+            # ...and the outer container for DinD.
+            log_and_run("docker rm -f %s || true" % self.name)
+        else:
+            # For non Docker-in-Docker, we can only remove the containers we
+            # created - so remove the workloads and the calico node.
+            self.remove_workloads()
+            log_and_run("docker rm -f calico-node || true")
 
         self._cleaned = True
 

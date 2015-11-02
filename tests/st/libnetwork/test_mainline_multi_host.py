@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
+from tests.st.libnetwork.test_mainline_single_host import \
+    ADDITIONAL_DOCKER_OPTIONS, POST_DOCKER_COMMANDS
 
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
@@ -32,8 +34,17 @@ class MultiHostMainline(TestBase):
         Create two hosts, a single network, one workload on each host and
         ping between them.
         """
-        with DockerHost('host1') as host1, DockerHost('host2') as host2:
+        with DockerHost('host1',
+                        additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
+                        post_docker_commands=POST_DOCKER_COMMANDS,
+                        start_calico=False) as host1, \
+            DockerHost('host2',
+                       additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
+                       post_docker_commands=POST_DOCKER_COMMANDS,
+                       start_calico=False) as host2:
             # TODO work IPv6 into this test too
+            host1.start_calico_node("--libnetwork")
+            host2.start_calico_node("--libnetwork")
 
             # Create the network on host1, but it should be usable from all
             # hosts.

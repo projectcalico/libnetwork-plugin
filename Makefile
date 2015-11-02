@@ -22,11 +22,10 @@ calicobuild.created: $(BUILD_FILES)
 	cd build_calicoctl; docker build -t calico/build-libnetwork .
 	touch calicobuild.created
 
-calicoctl:
-	#wget https://github.com/projectcalico/calico-docker/releases/download/v0.5.5/calicoctl
-	# Update to a release when there is one.
-	wget https://circle-artifacts.com/gh/projectcalico/calico-docker/1860/artifacts/0/home/ubuntu/calico-docker/dist/calicoctl
-	chmod +x calicoctl
+dist/calicoctl:
+	mkdir dist
+	curl -L http://www.projectcalico.org/latest/calicoctl -o dist/calicoctl
+	chmod +x dist/calicoctl
 
 test: st ut
 
@@ -64,12 +63,8 @@ calico-node.tgz:
 calico-node-libnetwork.tgz: caliconode.created
 	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
 
-st: docker calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
-	./calicoctl checksystem --fix
+st: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
 	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
-
-fast-st: docker busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
-	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer -a '!slow'
 
 run-plugin: node
 	docker run -ti --privileged --net=host -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
@@ -93,21 +88,49 @@ create-dind:
 	docker exec -ti $$ID sh;\
 	docker rm -f $$ID
 
+demo-environment: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
+	-docker rm -f host1 host2
+	docker run --name host1 -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 --privileged \
+	-v `pwd`:/code -v `pwd`/docker:/usr/local/bin/docker \
+	-tid calico/dind:libnetwork --cluster-store=etcd://$(LOCAL_IP_ENV):2379 ;\
+	docker run --name host2 -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 --privileged \
+	-v `pwd`:/code -v `pwd`/docker:/usr/local/bin/docker \
+	-tid calico/dind:libnetwork --cluster-store=etcd://$(LOCAL_IP_ENV):2379 ;\
+	docker exec -it host1 sh -c 'docker load -i /code/calico-node.tgz'
+	docker exec -it host1 sh -c 'docker load -i /code/busybox.tgz'
+	docker exec -it host1 sh -c 'docker load -i /code/calico-node-libnetwork.tgz'
+	docker exec -it host2 sh -c 'docker load -i /code/calico-node.tgz'
+	docker exec -it host2 sh -c 'docker load -i /code/busybox.tgz'
+	docker exec -it host2 sh -c 'docker load -i /code/calico-node-libnetwork.tgz'
+
+	@echo "Two dind hosts (host1, host2) are now ready."
+	@echo "Connect using:"
+	@echo "docker exec -ti host1 sh"
+
 docker:
 	# Download the latest docker to test.
-	curl https://test.docker.com/builds/Linux/x86_64/docker-1.9.0-rc4 -o docker
+	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.0 -o docker
 	chmod +x docker
 
-semaphore: docker
+semaphore:
 	# Install deps
-	pip install sh nose-timer nose netaddr
+	pip install sh nose-timer nose netaddr git+https://github.com/projectcalico/libcalico.git
 
-	#Run the STs
+	# Upgrade Docker
+	stop docker
+	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.0 -o /usr/bin/docker
+	cp /usr/bin/docker .
+	start docker
+
+	# Ensure Semaphore has loaded the required modules
+	modprobe -a ip6_tables xt_set
+
+	# Run the STs
 	make st
 
 clean:
 	-rm -f docker
 	-rm -f *.created
-	-rm -f calicoctl
+	-rm -rf dist
 	-rm -f *.tgz
 	-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker --rm martin/docker-cleanup-volumes
