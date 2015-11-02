@@ -30,7 +30,7 @@ class TestMainline(TestBase):
         # TODO - add in IPv6 as part of this flow.
         with DockerHost('host') as host:
             # Set up two endpoints on one host
-            network = host.create_network(str(uuid.uuid4()))
+            network = host.create_network("testnet")
             workload1 = host.create_workload(str(uuid.uuid4()), network=network)
             workload2 = host.create_workload(str(uuid.uuid4()), network=network)
 

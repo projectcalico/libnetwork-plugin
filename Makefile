@@ -95,7 +95,7 @@ create-dind:
 
 docker:
 	# Download the latest docker to test.
-	curl https://master.dockerproject.org/linux/amd64/docker-1.9.0-dev -o docker
+	curl https://test.docker.com/builds/Linux/x86_64/docker-1.9.0-rc4 -o docker
 	chmod +x docker
 
 semaphore: docker

@@ -37,7 +37,7 @@ class MultiHostMainline(TestBase):
 
             # Create the network on host1, but it should be usable from all
             # hosts.
-            network = host1.create_network(str(uuid.uuid4()))
+            network = host1.create_network("testnet")
 
             # Assert that the network can be seen on host2
             assert_network(host2, network)

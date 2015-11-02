@@ -45,7 +45,7 @@ class DockerHost(object):
                     (os.getcwd(), self.name, utils.get_ip()))
 
         self.ip = log_and_run("docker inspect --format "
-                              "'{{ .NetworkSettings.IPAddress }}' %s" % self.name)
+                              "'{{.NetworkSettings.Networks.bridge.IPAddress}}' %s" % self.name)
 
         # Make sure docker is up
         docker_ps = partial(self.execute, "docker ps")

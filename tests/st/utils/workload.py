@@ -65,8 +65,8 @@ class Workload(object):
         version_key = "IPAddress"
         # TODO Use version_key = "GlobalIPv6Address" for IPv6
 
-        ip_command = "docker inspect --format '{{ .NetworkSettings.%s }}' %s" % \
-                                                            (version_key, name)
+        ip_command = "docker inspect --format '{{.NetworkSettings.Networks.%s.%s}}' %s" % \
+                                                            (network, version_key, name)
         self.ip = host.execute(ip_command)
         logger.error(self.ip)
 
