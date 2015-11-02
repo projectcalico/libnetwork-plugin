@@ -89,7 +89,7 @@ create-dind:
 	@echo "You may want to load calico-node with"
 	@echo "docker load --input /code/calico-node.tgz"
 	@ID=$$(docker run --privileged -v `pwd`:/code -v `pwd`/docker:/usr/local/bin/docker \
-	-tid calico/dind:libnetwork --cluster-store=etcd://$(LOCAL_IP_ENV):2379) ;\
+	-tid calico/dind:latest --cluster-store=etcd://$(LOCAL_IP_ENV):2379) ;\
 	docker exec -ti $$ID sh;\
 	docker rm -f $$ID
 
