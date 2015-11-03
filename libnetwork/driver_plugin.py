@@ -98,11 +98,18 @@ def create_network():
     app.logger.info("Creating profile %s", network_id)
     client.create_profile(network_id)
 
+    # The generic options are always passed in
+    options = json_data["Options"]["com.docker.network.generic"]
+    ipip = options.get("ipip")
+    masquerade = options.get("nat-outgoing")
+
     # Create a calico Pool for the CNM pool that was passed in.
     for version in (4, 6):
         ip_data = json_data["IPv%sData" % version]
         if ip_data:
-            client.add_ip_pool(version, IPPool(ip_data[0]['Pool']))
+            client.add_ip_pool(version, IPPool(ip_data[0]['Pool'],
+                                               ipip=ipip,
+                                               masquerade=masquerade))
 
     # Store off the JSON passed in on this request. It's required in later calls
     # - CreateEndpoint needs it for the gateway address.

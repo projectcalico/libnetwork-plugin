@@ -61,8 +61,8 @@ class TestPlugin(unittest.TestCase):
         """
         request_json = '{"NetworkID": "%s", ' \
                        '"IPv4Data":[{"Pool": "6.5.4.3/21"}],'\
-                       '"IPv6Data":[]'\
-                       '}' % TEST_NETWORK_ID
+                       '"IPv6Data":[],'\
+                       '"Options": {"com.docker.network.generic":{}}}' % TEST_NETWORK_ID
         rv = self.app.post('/NetworkDriver.CreateNetwork',
                            data=request_json)
         m_create.assert_called_once_with(TEST_NETWORK_ID)
