@@ -17,10 +17,12 @@ from unittest import TestCase
 from tests.st.utils.utils import get_ip
 import logging
 
+HOST_IPV6 = get_ip(v6=True)
+
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-#Disable spammy logging from the sh module
+# Disable spammy logging from the sh module
 sh_logger = logging.getLogger("sh")
 sh_logger.setLevel(level=logging.CRITICAL)
 
@@ -33,11 +35,15 @@ class TestBase(TestCase):
         Clean up before every test.
         """
         self.ip = get_ip()
+
         # Delete /calico if it exists. This ensures each test has an empty data
         # store at start of day.
         subprocess.check_output(
             "curl -sL http://%s:2379/v2/keys/calico?recursive=true -XDELETE"
             % self.ip, shell=True)
+
+        # Log a newline to ensure that the first log appears on its own line.
+        logger.info("")
 
     def assert_connectivity(self, pass_list, fail_list=None):
         """
@@ -56,3 +62,26 @@ class TestBase(TestCase):
                 source.assert_can_ping(dest.ip)
             for dest in fail_list:
                 source.assert_cant_ping(dest.ip)
+
+    def assert_ip_connectivity(self, workload_list, ip_pass_list,
+                               ip_fail_list=None):
+        """
+        Assert partial connectivity graphs between workloads and given ips.
+
+        This function is used for checking connectivity for ips that are
+        explicitly assigned to containers when added to calico networking.
+
+        :param workload_list: List of workloads used to check connectivity.
+        :param ip_pass_list: Every workload in workload_list should be able to
+        ping every ip in this list.
+        :param ip_fail_list: Every workload in workload_list should *not* be
+        able to ping any ip in this list. Interconnectivity is not checked
+        *within* the fail_list.
+        """
+        if ip_fail_list is None:
+            ip_fail_list = []
+        for workload in workload_list:
+            for ip in ip_pass_list:
+                workload.assert_can_ping(ip)
+            for ip in ip_fail_list:
+                workload.assert_cant_ping(ip)

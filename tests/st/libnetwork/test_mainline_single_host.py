@@ -14,6 +14,7 @@
 import uuid
 
 from tests.st.test_base import TestBase
+from tests.st.utils import utils
 from tests.st.utils.docker_host import DockerHost
 import logging
 from tests.st.utils.utils import assert_number_endpoints, assert_profile, \
@@ -21,6 +22,11 @@ from tests.st.utils.utils import assert_number_endpoints, assert_profile, \
 
 logger = logging.getLogger(__name__)
 
+POST_DOCKER_COMMANDS = ["docker load -i /code/calico-node.tgz",
+                        "docker load -i /code/busybox.tgz",
+                        "docker load -i /code/calico-node-libnetwork.tgz"]
+
+ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379" % utils.get_ip()
 
 class TestMainline(TestBase):
     def test_mainline(self):
@@ -28,11 +34,16 @@ class TestMainline(TestBase):
         Setup two endpoints on one host and check connectivity then teardown.
         """
         # TODO - add in IPv6 as part of this flow.
-        with DockerHost('host') as host:
+        with DockerHost('host',
+                        additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
+                        post_docker_commands=POST_DOCKER_COMMANDS,
+                        start_calico=False) as host:
+            host.start_calico_node("--libnetwork")
+
             # Set up two endpoints on one host
             network = host.create_network("testnet")
-            workload1 = host.create_workload(str(uuid.uuid4()), network=network)
-            workload2 = host.create_workload(str(uuid.uuid4()), network=network)
+            workload1 = host.create_workload("workload1", network=network)
+            workload2 = host.create_workload("workload2", network=network)
 
             # Assert that endpoints are in Calico
             assert_number_endpoints(host, 2)
@@ -43,8 +54,8 @@ class TestMainline(TestBase):
 
             # Allow network to converge
             # Check connectivity.
-            workload1.assert_can_ping(workload2.ip, retries=5)
-            self.assert_connectivity([workload1, workload2])
+            workload1.assert_can_ping("workload2", retries=5)
+            workload2.assert_can_ping("workload1", retries=5)
 
             # Disconnect endpoints from the network
             # Assert can't ping and endpoints are removed from Calico
