@@ -57,6 +57,13 @@ class TestMainline(TestBase):
             workload1.assert_can_ping("workload2", retries=5)
             workload2.assert_can_ping("workload1", retries=5)
 
+            # Inspect the workload to ensure the MAC address is set
+            # correctly.
+            format = "'{{.NetworkSettings.Networks.%s.MacAddress}}'" % network
+            mac = host.execute("docker inspect --format %s %s" % (format,
+                                                                  workload1.name))
+            self.assertEquals(mac.lower(), "ee:ee:ee:ee:ee:ee")
+
             # Disconnect endpoints from the network
             # Assert can't ping and endpoints are removed from Calico
             network.disconnect(host, workload1)

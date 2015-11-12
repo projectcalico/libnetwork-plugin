@@ -278,7 +278,11 @@ class TestPlugin(unittest.TestCase):
 
 
             # Assert return value
-            self.assertDictEqual(json.loads(rv.data), {})
+            self.assertDictEqual(json.loads(rv.data), {
+                "Interface": {
+                    "MacAddress": "EE:EE:EE:EE:EE:EE"
+                }
+            })
 
             # Reset the Mocks before continuing.
             m_set.reset_mock()

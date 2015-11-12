@@ -161,8 +161,15 @@ def create_endpoint():
         ep.ipv6_gateway = gateway_net.ip
 
     client.set_endpoint(ep)
-    app.logger.debug("CreateEndpoint response JSON=%s", {})
-    return jsonify({})
+
+    json_response = {
+        "Interface": {
+            "MacAddress": FIXED_MAC,
+        }
+    }
+
+    app.logger.debug("CreateEndpoint response JSON=%s", json_response)
+    return jsonify(json_response)
 
 
 @app.route('/NetworkDriver.Join', methods=['POST'])
@@ -192,16 +199,16 @@ def join():
         remove_veth(host_interface_name)
         raise e
 
-    return_json = {
+    json_response = {
         "InterfaceName": {
             "SrcName": temp_interface_name,
-            "DstPrefix": IF_PREFIX
+            "DstPrefix": IF_PREFIX,
         },
         "Gateway": "",  # Leave gateway empty to trigger auto-gateway behaviour
     }
 
-    app.logger.debug("Join Response JSON=%s", return_json)
-    return jsonify(return_json)
+    app.logger.debug("Join Response JSON=%s", json_response)
+    return jsonify(json_response)
 
 
 @app.route('/NetworkDriver.EndpointOperInfo', methods=['POST'])
@@ -210,13 +217,12 @@ def endpoint_oper_info():
     app.logger.debug("EndpointOperInfo JSON=%s", json_data)
     endpoint_id = json_data["EndpointID"]
     app.logger.info("Endpoint operation info requested for %s", endpoint_id)
-
-    # Might need to return MAC here but it currently crashes Docker
-    # https://github.com/docker/libnetwork/issues/605
-    # ret_json = {"com.docker.network.endpoint.macaddress": FIXED_MAC}
-
-    app.logger.debug("EP Oper Info Response JSON=%s", {})
-    return jsonify({"Value": {}})
+    json_response = {
+        "Value": {
+        }
+    }
+    app.logger.debug("EP Oper Info Response JSON=%s", json_response)
+    return jsonify(json_response)
 
 
 @app.route('/NetworkDriver.DeleteNetwork', methods=['POST'])
