@@ -8,7 +8,10 @@ NODE_FILES=Dockerfile start.sh
 
 # These variables can be overridden by setting an environment variable.
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 | cut -d' ' -f8)
-ST_TO_RUN?=tests/st/
+ST_TO_RUN?=tests/st
+# Can exclude the slower tests with "-a '!slow'"
+ST_OPTIONS?=
+HOST_CHECKOUT_DIR?=$(shell pwd)
 
 default: all
 all: test
@@ -38,7 +41,6 @@ ut: calicobuild.created
 	'/tmp/etcd -data-dir=/tmp/default.etcd/ >/dev/null 2>&1 & \
 	nosetests tests/unit  -c nose.cfg'
 
-# TODO
 ut-circle: calicobuild.created
 	# Can't use --rm on circle
 	# Circle also requires extra options for reporting.
@@ -63,8 +65,23 @@ calico-node.tgz:
 calico-node-libnetwork.tgz: caliconode.created
 	docker save calico/node-libnetwork:latest | gzip -c > calico-node-libnetwork.tgz
 
-st: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
-	nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer
+st:  docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
+	# Use the host, PID and network namespaces from the host.
+	# Privileged is needed since 'calico node' write to /proc (to enable ip_forwarding)
+	# Map the docker socket in so docker can be used from inside the container
+	# HOST_CHECKOUT_DIR is used for volume mounts on containers started by this one.
+	# All of code under test is mounted into the container.
+	#   - This also provides access to calicoctl and the docker client
+	docker run --uts=host \
+	           --pid=host \
+	           --net=host \
+	           --privileged \
+	           -e HOST_CHECKOUT_DIR=$(HOST_CHECKOUT_DIR) \
+	           --rm -ti \
+	           -v /var/run/docker.sock:/var/run/docker.sock \
+	           -v `pwd`:/code \
+	           calico/test \
+	           sh -c 'cp -ra tests/st/libnetwork/ /tests/st && cd / && nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer $(ST_OPTIONS)'
 
 run-plugin: node
 	docker run -ti --privileged --net=host -v /run/docker/plugins:/run/docker/plugins -e ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 calico/node-libnetwork
