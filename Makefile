@@ -21,10 +21,6 @@ caliconode.created: $(SRC_FILES) $(NODE_FILES)
 	docker build -t calico/node-libnetwork .
 	touch caliconode.created
 
-calicobuild.created: $(BUILD_FILES)
-	cd build_calicoctl; docker build -t calico/build-libnetwork .
-	touch calicobuild.created
-
 dist/calicoctl:
 	mkdir dist
 	curl -L http://www.projectcalico.org/latest/calicoctl -o dist/calicoctl
@@ -32,25 +28,21 @@ dist/calicoctl:
 
 test: st ut
 
-ut: calicobuild.created
+ut: 
 	# Use the `root` user, since code coverage requires the /code directory to
 	# be writable.  It may not be writable for the `user` account inside the
 	# container.
-	docker run --rm -v `pwd`:/code -u root \
-	calico/build-libnetwork bash -c \
-	'/tmp/etcd -data-dir=/tmp/default.etcd/ >/dev/null 2>&1 & \
-	nosetests tests/unit  -c nose.cfg'
+	docker run --rm -v `pwd`:/code -u root calico/test nosetests tests/unit  -c nose.cfg
 
-ut-circle: calicobuild.created
+ut-circle:
 	# Can't use --rm on circle
 	# Circle also requires extra options for reporting.
 	docker run \
 	-v `pwd`:/code \
 	-v $(CIRCLE_TEST_REPORTS):/circle_output \
 	-e COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) \
-	calico/build-libnetwork bash -c \
-	'/tmp/etcd -data-dir=/tmp/default.etcd/ >/dev/null 2>&1 & \
-	nosetests tests/unit -c nose.cfg \
+	calico/test sh -c \
+	'nosetests tests/unit -c nose.cfg \
 	--with-xunit --xunit-file=/circle_output/output.xml; RC=$$?;\
 	[[ ! -z "$$COVERALLS_REPO_TOKEN" ]] && coveralls || true; exit $$RC'
 
@@ -130,9 +122,6 @@ docker:
 	chmod +x docker
 
 semaphore:
-	# Install deps
-	pip install sh nose-timer nose netaddr git+https://github.com/projectcalico/libcalico.git
-
 	# Upgrade Docker
 	stop docker
 	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.0 -o /usr/bin/docker
