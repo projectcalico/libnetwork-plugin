@@ -15,8 +15,8 @@ class LibnetworkDatastoreClient(IPAMClient):
         provided on the CreateNetwork call, or None if it couldn't be found.
         """
         try:
-            network_id = self.etcd_client.read(PREFIX + network_id)
-            return json.loads(network_id.value)
+            network_data = self.etcd_client.read(PREFIX + network_id)
+            return json.loads(network_data.value)
         except EtcdKeyNotFound:
             return None
 
