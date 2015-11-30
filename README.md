@@ -55,10 +55,19 @@ driver:
    have the same ipip and nat-outgoing settings.
 
 ## Troubleshooting
+
 ### Logging
-Logs are sent to STDOUT. If using Docker these can be viewed with the `docker logs` command.
+Logs are sent to STDOUT. If using Docker these can be viewed with the 
+`docker logs` command.
+
 #### Changing the log level
-This currently requires a rebuild. Change the line towards the top of the [plugin code](https://github.com/projectcalico/libnetwork-plugin/blob/master/libnetwork/driver_plugin.py)
+This currently requires a rebuild. Change the following line towards the top of
+the [plugin code](https://github.com/projectcalico/libnetwork-plugin/blob/master/libnetwork/driver_plugin.py)
+
+    app.logger.setLevel(logging.DEBUG)
+    
+This uses the standard Python logging module, so logging level may be set to
+any of the values defined in the logging module.
 
 ## Performance
 ### Datastore Interactions
@@ -85,9 +94,9 @@ Datastore interactions using Calico IPAM:
 Operation      | Reads | Writes| Deletes| Notes
 ---------------|-------|-------|--------|------
 DiscoverNew    | 0     | 0     | 0      | None
-RequestPool    | 0     | 0     | 0      | None
+RequestPool    | 0     | 0 or 1 | 0      | 1 for verifying Calico pool if subnet explicitly specified
 CreateNetwork  | 0     | 3     | 0      | 2 for creating profile (tags and rules), and 1 to store the request JSON
-RequestAddress | >=2   | >=1   | >=0    | May have multiple reads/writes/deletes depending on contention (see libcalico IPAM)
+RequestAddress | >=2   | >=1   | >=0    | May have multiple reads/writes/deletes depending on contention (see libcalico IPAM),  Reads IP pools if subnet is specified on network.
 CreateEndpoint | 3     | 1     | 0      | Read CreateNetwork JSON and IPv4/IPv6 next hops, and write Endpoint
 Join           | 2     | 0     | 0      | Read CreateNetwork JSON and Endpoint
 DiscoverDelete | 0     | 0     | 0      | None

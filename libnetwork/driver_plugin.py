@@ -136,24 +136,33 @@ def request_pool():
     sub_pool = json_data.get("SubPool")
     v6 = json_data["V6"]
 
-    # Calico IPAM does not allow you to request Pool or SubPool.
-    if pool or sub_pool:
-        error_message = "Calico IPAM does not support pool configuration on " \
-                        "'docker create network'.  Calico IP Pools should " \
-                        "be configured first and IP assignment is from " \
-                        "those pre-configured pools."
+    # Calico IPAM does not allow you to request SubPool.
+    if sub_pool:
+        error_message = "Calico IPAM does not support sub pool configuration" \
+                        "on 'docker create network'.  Calico IP Pools " \
+                        "should be configured first and IP assignment is " \
+                        "from those pre-configured pools."
         app.logger.error(error_message)
         raise Exception(error_message)
 
-    # We use static pool ID and CIDR - these are arbitrary since we do not
-    # actually create a pool here.  The user should have configured a Calico
-    # IP pool which will be used for address assignment.
+    # If a pool (subnet on the CLI) is specified, it must match one of the
+    # preconfigured Calico pools.
+    if pool:
+        if not get_pool(IPNetwork(pool)):
+            error_message = "The requested subnet must match the CIDR of a " \
+                            "configured Calico IP Pool."
+            app.logger.error(error_message)
+            raise Exception(error_message)
+
+    # If a subnet has been specified we use that as the pool ID. Otherwise, we
+    # use static pool ID and CIDR to indicate that we are assigning from all of
+    # the pools.
     if v6:
-        pool_id = POOL_ID_V6
+        pool_id = pool or POOL_ID_V6
         pool_cidr = POOL_CIDR_STR_V6
         gateway_cidr = GATEWAY_CIDR_STR_V6
     else:
-        pool_id = POOL_ID_V4
+        pool_id = pool or POOL_ID_V4
         pool_cidr = POOL_CIDR_STR_V4
         gateway_cidr = GATEWAY_CIDR_STR_V4
 
@@ -191,15 +200,42 @@ def request_address():
     if not address:
         app.logger.debug("Auto assigning IP from Calico pools")
 
-        # No address requested, so auto assign from our pools.
-        num_v4 = 1 if pool_id == POOL_ID_V4 else 0
-        num_v6 = 1 if pool_id == POOL_ID_V6 else 0
+        # No address requested, so auto assign from our pools.  If the pool ID
+        # is one of the fixed IDs then assign from across all configured pools,
+        # otherwise assign from the requested pool
+        if pool_id == POOL_ID_V4:
+            version = 4
+            pool = None
+        elif pool_id == POOL_ID_V6:
+            version = 6
+            pool = None
+        else:
+            pool_cidr = IPNetwork(pool_id)
+            pool = get_pool(pool_cidr)
+            if not pool:
+                error_message = "The network references a Calico pool which " \
+                                "has been deleted.  Please re-instate the " \
+                                "Calico pool before using the network."
+                app.logger.error(error_message)
+                raise Exception(error_message)
+            version = pool_cidr.version
+
+        if version == 4:
+            num_v4 = 1
+            num_v6 = 0
+            pool_v4 = pool
+            pool_v6 = None
+        else:
+            num_v4 = 0
+            num_v6 = 1
+            pool_v4 = None
+            pool_v6 = pool
 
         # Auto assign an IP based on whether the IPv4 or IPv6 pool was selected.
         # We auto-assign from all available pools with affinity based on our
         # host.
         ips_v4, ips_v6 = client.auto_assign_ips(num_v4, num_v6, None, None,
-                                                pool=(None, None),
+                                                pool=(pool_v4, pool_v6),
                                                 hostname=hostname)
         ips = ips_v4 + ips_v6
         if not ips:
@@ -597,3 +633,17 @@ def is_using_calico_ipam(gateway_cidr):
     # A 0 gateway IP indicates Calico IPAM is being used.
     assert isinstance(gateway_cidr, IPNetwork)
     return gateway_cidr in (GATEWAY_NETWORK_V4, GATEWAY_NETWORK_V6)
+
+
+def get_pool(pool_cidr):
+    """
+    Return the Calico IP Pool with the specified pool CIDR, or None if not
+    present.
+    :param pool_cidr:  The pool CIDR.
+    :return:  IPPool - The Calico pool, or None if not configured.
+    """
+    pools = client.get_ip_pools(pool_cidr.version, ipam=True)
+    for pool in pools:
+        if pool.cidr == pool_cidr:
+            return pool
+    return None
