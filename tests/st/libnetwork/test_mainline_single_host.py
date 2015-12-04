@@ -18,7 +18,7 @@ from tests.st.utils import utils
 from tests.st.utils.docker_host import DockerHost
 import logging
 from tests.st.utils.utils import assert_number_endpoints, assert_profile, \
-    get_profile_name
+    get_profile_name, ETCD_CA, ETCD_CERT, ETCD_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,12 @@ POST_DOCKER_COMMANDS = ["docker load -i /code/calico-node.tgz",
                         "docker load -i /code/busybox.tgz",
                         "docker load -i /code/calico-node-libnetwork.tgz"]
 
-ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379" % utils.get_ip()
+
+ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379 " \
+                            "--cluster-store-opt kv.cacertfile=%s " \
+                            "--cluster-store-opt kv.certfile=%s " \
+                            "--cluster-store-opt kv.keyfile=%s " % \
+                            (utils.get_ip(), ETCD_CA, ETCD_CERT, ETCD_KEY)
 
 class TestMainline(TestBase):
     def test_mainline(self):
