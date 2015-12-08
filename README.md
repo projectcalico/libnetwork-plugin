@@ -101,4 +101,5 @@ Leave          | 0     | 0     | 0      | None
 ## Contributing and getting help
 See the [main Calico documentation](http://docs.projectcalico.org/en/latest/involved.html)
 
-Further sources of getting help are listed in the [calico-docker](https://github.com/projectcalico/calico-docker#calico-on-docker) repository.[![Analytics](https://ga-beacon.appspot.com/UA-52125893-3/libnetwork-plugin/README.md?pixel)](https://github.com/igrigorik/ga-beacon)
+Further sources of getting help are listed in the [calico-docker](https://github.com/projectcalico/calico-docker#calico-on-docker) repository.
+[![Analytics](https://ga-beacon.appspot.com/UA-52125893-3/libnetwork-plugin/README.md?pixel)](https://github.com/igrigorik/ga-beacon)
