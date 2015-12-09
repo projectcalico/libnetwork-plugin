@@ -100,15 +100,61 @@ class TestPlugin(unittest.TestCase):
         }
         self.assertDictEqual(json.loads(rv.data), response_data)
 
-    def test_request_pool_pool_defined(self):
+    @patch("libnetwork.driver_plugin.client.get_ip_pools", autospec=True)
+    def test_request_pool_valid_ipv4_pool_defined(self, m_get_pools):
         """
-        Test request_pool errors if a specific pool is requested.
+        Test request_pool errors if a valid IPv4 pool is requested.
         """
         request_data = {
-            "Pool": "1.2.3.4/5",
+            "Pool": "1.2.3.4/31",
             "SubPool": "",
             "V6": False
         }
+        m_get_pools.return_value = [IPPool("1.2.3.4/31")]
+        rv = self.app.post('/IpamDriver.RequestPool',
+                           data=json.dumps(request_data))
+        response_data = {
+            "PoolID": "1.2.3.4/31",
+            "Pool": "0.0.0.0/0",
+            "Data": {
+                "com.docker.network.gateway": "0.0.0.0/0"
+            }
+        }
+        self.assertDictEqual(json.loads(rv.data), response_data)
+
+    @patch("libnetwork.driver_plugin.client.get_ip_pools", autospec=True)
+    def test_request_pool_valid_ipv6_pool_defined(self, m_get_pools):
+        """
+        Test request_pool errors if a valid IPv6 pool is requested.
+        """
+        request_data = {
+            "Pool": "11:22::3300/120",
+            "SubPool": "",
+            "V6": True
+        }
+        m_get_pools.return_value = [IPPool("11:22::3300/120")]
+        rv = self.app.post('/IpamDriver.RequestPool',
+                           data=json.dumps(request_data))
+        response_data = {
+            "PoolID": "11:22::3300/120",
+            "Pool": "::/0",
+            "Data": {
+                "com.docker.network.gateway": "::/0"
+            }
+        }
+        self.assertDictEqual(json.loads(rv.data), response_data)
+
+    @patch("libnetwork.driver_plugin.client.get_ip_pools", autospec=True)
+    def test_request_pool_invalid_pool_defined(self, m_get_pools):
+        """
+        Test request_pool errors if an invalid pool is requested.
+        """
+        request_data = {
+            "Pool": "1.2.3.0/24",
+            "SubPool": "",
+            "V6": False
+        }
+        m_get_pools.return_value = [IPPool("1.2.4.0/24")]
         rv = self.app.post('/IpamDriver.RequestPool',
                            data=json.dumps(request_data))
         self.assertTrue("Err" in json.loads(rv.data))
@@ -138,9 +184,28 @@ class TestPlugin(unittest.TestCase):
         self.assertDictEqual(json.loads(rv.data), {})
 
     @patch("libnetwork.driver_plugin.client.auto_assign_ips", autospec=True)
-    def test_request_address_auto_assign(self, m_auto_assign):
+    def test_request_address_auto_assign_ipv4(self, m_auto_assign):
         """
-        Test request_address when address is auto-assigned.
+        Test request_address when IPv4 address is auto-assigned.
+        """
+        request_data = {
+            "PoolID": "CalicoPoolIPv4",
+            "Address": ""
+        }
+        ip = IPAddress("1.2.3.4")
+        m_auto_assign.return_value = ([], [ip])
+        rv = self.app.post('/IpamDriver.RequestAddress',
+                           data=json.dumps(request_data))
+        response_data = {
+            "Address": str(IPNetwork(ip)),
+            "Data": {}
+        }
+        self.assertDictEqual(json.loads(rv.data), response_data)
+
+    @patch("libnetwork.driver_plugin.client.auto_assign_ips", autospec=True)
+    def test_request_address_auto_assign_ipv6(self, m_auto_assign):
+        """
+        Test request_address when IPv6 address is auto-assigned.
         """
         request_data = {
             "PoolID": "CalicoPoolIPv6",
@@ -155,6 +220,48 @@ class TestPlugin(unittest.TestCase):
             "Data": {}
         }
         self.assertDictEqual(json.loads(rv.data), response_data)
+
+    @patch("libnetwork.driver_plugin.client.get_ip_pools", autospec=True)
+    @patch("libnetwork.driver_plugin.client.auto_assign_ips", autospec=True)
+    def test_request_address_assign_ipv4_from_subnet(self, m_auto_assign,
+                                                     m_get_pools):
+        """
+        Test request_address when IPv4 address is auto-assigned from a valid
+        subnet.
+        """
+        request_data = {
+            "PoolID": "1.2.3.0/24",
+            "Address": ""
+        }
+        ip = IPAddress("1.2.3.4")
+        m_auto_assign.return_value = ([], [ip])
+        m_get_pools.return_value = [IPPool("1.2.3.0/24")]
+        rv = self.app.post('/IpamDriver.RequestAddress',
+                           data=json.dumps(request_data))
+        response_data = {
+            "Address": str(IPNetwork(ip)),
+            "Data": {}
+        }
+        self.assertDictEqual(json.loads(rv.data), response_data)
+
+    @patch("libnetwork.driver_plugin.client.get_ip_pools", autospec=True)
+    @patch("libnetwork.driver_plugin.client.auto_assign_ips", autospec=True)
+    def test_request_address_assign_ipv4_from_invalid_subnet(self, m_auto_assign,
+                                                             m_get_pools):
+        """
+        Test request_address when IPv4 address is auto-assigned from an invalid
+        subnet.
+        """
+        request_data = {
+            "PoolID": "1.2.3.0/24",
+            "Address": ""
+        }
+        ip = IPAddress("1.2.3.4")
+        m_auto_assign.return_value = ([], [ip])
+        m_get_pools.return_value = [IPPool("1.2.5.0/24")]
+        rv = self.app.post('/IpamDriver.RequestAddress',
+                           data=json.dumps(request_data))
+        self.assertTrue("Err" in json.loads(rv.data))
 
     @patch("libnetwork.driver_plugin.client.auto_assign_ips", autospec=True)
     def test_request_address_auto_assign_no_ips(self, m_auto_assign):
