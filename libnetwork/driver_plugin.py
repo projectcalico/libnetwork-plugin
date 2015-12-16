@@ -236,7 +236,7 @@ def request_address():
         # host.
         ips_v4, ips_v6 = client.auto_assign_ips(num_v4, num_v6, None, None,
                                                 pool=(pool_v4, pool_v6),
-                                                hostname=hostname)
+                                                host=hostname)
         ips = ips_v4 + ips_v6
         if not ips:
             error_message = "There are no available IP addresses in the " \
@@ -247,7 +247,7 @@ def request_address():
         app.logger.debug("Reserving a specific address in Calico pools")
         try:
             ip_address = IPAddress(address)
-            rc = client.assign_ip(ip_address, None, {}, hostname=hostname)
+            rc = client.assign_ip(ip_address, None, {}, host=hostname)
             if not rc:
                 error_message = "The address %s is already in " \
                                 "use" % str(ip_address)
