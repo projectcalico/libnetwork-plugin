@@ -191,7 +191,8 @@ semaphore:
 	make st
 
 	# Run subset of STs with secure etcd (only a few total, so just run all of them)
-	make st-ssl
+	# Temporarily disable the secure STs
+	#make st-ssl
 
 clean:
 	-rm -f docker
