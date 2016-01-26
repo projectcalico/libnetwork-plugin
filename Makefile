@@ -29,10 +29,7 @@ dist/calicoctl:
 test: st ut
 
 ut: 
-	# Use the `root` user, since code coverage requires the /code directory to
-	# be writable.  It may not be writable for the `user` account inside the
-	# container.
-	docker run --rm -v `pwd`:/code -u root calico/test nosetests tests/unit  -c nose.cfg
+	docker run --rm -v `pwd`:/code calico/test nosetests tests/unit  -c nose.cfg
 
 ut-circle:
 	# Can't use --rm on circle
@@ -174,16 +171,10 @@ demo-environment: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-
 
 docker:
 	# Download the latest docker to test.
-	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.0 -o docker
+	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.1 -o docker
 	chmod +x docker
 
 semaphore:
-	# Upgrade Docker
-	stop docker
-	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.0 -o /usr/bin/docker
-	cp /usr/bin/docker .
-	start docker
-
 	# Ensure Semaphore has loaded the required modules
 	modprobe -a ip6_tables xt_set
 
