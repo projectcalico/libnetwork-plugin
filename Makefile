@@ -1,4 +1,4 @@
-.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl install-completion fast-st
+.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl install-completion
 
 SRCDIR=libnetwork
 SRC_FILES=$(wildcard $(SRCDIR)/*.py)
@@ -27,6 +27,7 @@ dist/calicoctl:
 	chmod +x dist/calicoctl
 
 test: st ut
+ssl-certs: certs/.certificates.created ## Generate self-signed SSL certificates
 
 ut: 
 	docker run --rm -v `pwd`:/code calico/test nosetests tests/unit  -c nose.cfg
@@ -57,17 +58,23 @@ calico-node-libnetwork.tgz: caliconode.created
 ## Generate the keys and certificates for running etcd with SSL.
 certs/.certificates.created:
 	mkdir -p certs
-	curl -L "https://github.com/projectcalico/etcd-ca/releases/download/v1.0/etcd-ca" -o certs/etcd-ca
-	chmod +x certs/etcd-ca
-	cd certs && find . ! -name 'etcd-ca' -type f -exec rm {} + && \
-	  ./etcd-ca init --organization "Metaswitch" --passphrase "" && \
-	  ./etcd-ca new-cert --passphrase "" --organization "Metaswitch" client && \
-	  ./etcd-ca new-cert --passphrase "" --ip "$(LOCAL_IP_ENV),127.0.0.1" --organization "Metaswitch" server && \
-	  ./etcd-ca sign --passphrase "" client && \
-	  ./etcd-ca sign --passphrase "" server && \
-	  ./etcd-ca export --insecure --passphrase "" client | tar xvf - && \
-	  ./etcd-ca export --insecure --passphrase "" server | tar xvf - && \
-	  ./etcd-ca export | tar xvf -
+	curl -L "https://pkg.cfssl.org/R1.1/cfssl_linux-amd64" -o certs/cfssl
+	curl -L "https://pkg.cfssl.org/R1.1/cfssljson_linux-amd64" -o certs/cfssljson
+	chmod a+x certs/cfssl
+	chmod a+x certs/cfssljson
+
+	certs/cfssl gencert -initca tests/st/ssl-config/ca-csr.json | certs/cfssljson -bare certs/ca
+	certs/cfssl gencert \
+	  -ca certs/ca.pem \
+	  -ca-key certs/ca-key.pem \
+	  -config tests/st/ssl-config/ca-config.json \
+	  tests/st/ssl-config/req-csr.json | certs/cfssljson -bare certs/client
+	certs/cfssl gencert \
+	  -ca certs/ca.pem \
+	  -ca-key certs/ca-key.pem \
+	  -config tests/st/ssl-config/ca-config.json \
+	  tests/st/ssl-config/req-csr.json | certs/cfssljson -bare certs/server
+
 	touch certs/.certificates.created
 
 st:  docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
@@ -82,6 +89,7 @@ st:  docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tg
 	           --net=host \
 	           --privileged \
 	           -e HOST_CHECKOUT_DIR=$(HOST_CHECKOUT_DIR) \
+	           -e DEBUG_FAILURES=$(DEBUG_FAILURES) \
 	           --rm -ti \
 	           -v /var/run/docker.sock:/var/run/docker.sock \
 	           -v `pwd`:/code \
@@ -105,9 +113,10 @@ st-ssl: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork
 	           --privileged \
 	           -e HOST_CHECKOUT_DIR=$(HOST_CHECKOUT_DIR) \
 	           -e ETCD_SCHEME=https \
-	           -e ETCD_CA_CERT_FILE=`pwd`/certs/ca.crt \
-	           -e ETCD_CERT_FILE=`pwd`/certs/client.crt \
-	           -e ETCD_KEY_FILE=`pwd`/certs/client.key.insecure \
+	           -e ETCD_CA_CERT_FILE=`pwd`/certs/ca.pem \
+	           -e ETCD_CERT_FILE=`pwd`/certs/client.pem \
+	           -e ETCD_KEY_FILE=`pwd`/certs/client-key.pem \
+	           -e DEBUG_FAILURES=$(DEBUG_FAILURES) \
 	           --rm -ti \
 	           -v /var/run/docker.sock:/var/run/docker.sock \
 	           -v `pwd`:/code \
@@ -130,17 +139,24 @@ run-etcd:
 	--listen-client-urls "http://0.0.0.0:2379"
 
 ## Run etcd in a container with SSL verification. Used primarily by STs.
-run-etcd-ssl: certs/.certificates.created
+run-etcd-ssl: certs/.certificates.created add-ssl-hostname
 	@-docker rm -f calico-etcd calico-etcd-ssl
 	docker run --detach \
 	--net=host \
 	-v `pwd`/certs:/etc/calico/certs \
 	--name calico-etcd-ssl quay.io/coreos/etcd:v2.0.11 \
-	--cert-file "/etc/calico/certs/server.crt" \
-	--key-file "/etc/calico/certs/server.key.insecure" \
-	--ca-file "/etc/calico/certs/ca.crt" \
-	--advertise-client-urls "https://$(LOCAL_IP_ENV):2379,https://127.0.0.1:2379" \
+	--cert-file "/etc/calico/certs/server.pem" \
+	--key-file "/etc/calico/certs/server-key.pem" \
+	--ca-file "/etc/calico/certs/ca.pem" \
+	--advertise-client-urls "https://etcd-authority-ssl:2379,https://localhost:2379" \
 	--listen-client-urls "https://0.0.0.0:2379"
+
+add-ssl-hostname:
+	# Set "LOCAL_IP etcd-authority-ssl" in /etc/hosts to use as a hostname for etcd with ssl
+	if ! grep -q "etcd-authority-ssl" /etc/hosts; then \
+	  echo "\n# Host used by Calico's ETCD with SSL\n$(LOCAL_IP_ENV) etcd-authority-ssl" >> /etc/hosts; \
+	fi
+
 
 create-dind:
 	@echo "You may want to load calico-node with"
@@ -183,7 +199,7 @@ semaphore:
 
 	# Run subset of STs with secure etcd (only a few total, so just run all of them)
 	# Temporarily disable the secure STs
-	#make st-ssl
+	make st-ssl
 
 clean:
 	-rm -f docker
