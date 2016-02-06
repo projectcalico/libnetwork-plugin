@@ -23,6 +23,7 @@ from pycalico.util import generate_cali_interface_name
 from subprocess32 import CalledProcessError
 
 from libnetwork import driver_plugin
+from pycalico.block import AlreadyAssignedError
 from pycalico.datastore_datatypes import Endpoint, IF_PREFIX, IPPool
 from pycalico.datastore_errors import PoolNotFound
 
@@ -287,7 +288,6 @@ class TestPlugin(unittest.TestCase):
             "PoolID": "CalicoPoolIPv4",
             "Address": str(ip)
         }
-        m_assign.return_value = True
         rv = self.app.post('/IpamDriver.RequestAddress',
                            data=json.dumps(request_data))
         response_data = {
@@ -306,7 +306,7 @@ class TestPlugin(unittest.TestCase):
             "PoolID": "CalicoPoolIPv4",
             "Address": str(ip)
         }
-        m_assign.return_value = False
+        m_assign.side_effect = AlreadyAssignedError()
         rv = self.app.post('/IpamDriver.RequestAddress',
                            data=json.dumps(request_data))
         self.assertTrue("Err" in json.loads(rv.data))
