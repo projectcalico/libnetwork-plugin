@@ -106,15 +106,15 @@ class TestPlugin(unittest.TestCase):
         Test request_pool errors if a valid IPv4 pool is requested.
         """
         request_data = {
-            "Pool": "1.2.3.4/31",
+            "Pool": "1.2.3.4/26",
             "SubPool": "",
             "V6": False
         }
-        m_get_pools.return_value = [IPPool("1.2.3.4/31")]
+        m_get_pools.return_value = [IPPool("1.2.3.4/26")]
         rv = self.app.post('/IpamDriver.RequestPool',
                            data=json.dumps(request_data))
         response_data = {
-            "PoolID": "1.2.3.4/31",
+            "PoolID": "1.2.3.4/26",
             "Pool": "0.0.0.0/0",
             "Data": {
                 "com.docker.network.gateway": "0.0.0.0/0"
