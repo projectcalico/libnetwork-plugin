@@ -19,6 +19,7 @@ from pycalico.util import generate_cali_interface_name
 from subprocess32 import CalledProcessError
 from werkzeug.exceptions import HTTPException, default_exceptions
 from netaddr import IPAddress, IPNetwork
+from pycalico.block import AlreadyAssignedError
 from pycalico.datastore_datatypes import IF_PREFIX, Endpoint, IPPool
 from pycalico.datastore_errors import PoolNotFound
 from pycalico import netns
@@ -247,13 +248,13 @@ def request_address():
         app.logger.debug("Reserving a specific address in Calico pools")
         try:
             ip_address = IPAddress(address)
-            rc = client.assign_ip(ip_address, None, {}, host=hostname)
-            if not rc:
-                error_message = "The address %s is already in " \
-                                "use" % str(ip_address)
-                app.logger.error(error_message)
-                raise Exception(error_message)
+            client.assign_ip(ip_address, None, {}, host=hostname)
             ips = [ip_address]
+        except AlreadyAssignedError:
+            error_message = "The address %s is already in " \
+                            "use" % str(ip_address)
+            app.logger.error(error_message)
+            raise Exception(error_message)
         except PoolNotFound:
             error_message = "The address %s is not in one of the configured " \
                             "Calico IP pools" % str(ip_address)
