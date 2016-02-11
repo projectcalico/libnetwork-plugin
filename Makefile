@@ -1,4 +1,4 @@
-.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl install-completion
+.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl docker install-completion
 
 SRCDIR=libnetwork
 SRC_FILES=$(wildcard $(SRCDIR)/*.py)
@@ -187,10 +187,16 @@ demo-environment: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-
 
 docker:
 	# Download the latest docker to test.
-	curl https://get.docker.com/builds/Linux/x86_64/docker-1.9.1 -o docker
+	curl https://get.docker.com/builds/Linux/x86_64/docker-1.10.1 -o docker
 	chmod +x docker
 
-semaphore:
+semaphore: docker
+	# Use the downloaded docker locally, not just with Docker in Docker STs
+	service docker stop
+	cp ./docker $(shell which docker)
+	service docker start
+	docker version
+
 	# Ensure Semaphore has loaded the required modules
 	modprobe -a ip6_tables xt_set
 
