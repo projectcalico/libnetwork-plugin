@@ -6,7 +6,7 @@
 #Libnetwork plugin for Calico
 
 This plugin for Docker networking ([libnetwork](https://github.com/docker/libnetwork)) is intended for use with [Project Calico](http://www.projectcalico.org).
-Calico can be deployed on Docker using guides from the [calico-docker](https://github.com/projectcalico/calico-docker) repository.
+Calico can be deployed on Docker using guides from the [calico-containers](https://github.com/projectcalico/calico-containers) repository.
 
 ## How to Run It
 When deployed using `calicoctl` (see calico-docker) simply pass in the `--libnetwork` flag.
