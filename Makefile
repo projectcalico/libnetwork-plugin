@@ -58,8 +58,8 @@ calico-node-libnetwork.tgz: caliconode.created
 ## Generate the keys and certificates for running etcd with SSL.
 certs/.certificates.created:
 	mkdir -p certs
-	curl -L "https://pkg.cfssl.org/R1.1/cfssl_linux-amd64" -o certs/cfssl
-	curl -L "https://pkg.cfssl.org/R1.1/cfssljson_linux-amd64" -o certs/cfssljson
+	curl -L "https://github.com/projectcalico/cfssl/releases/download/1.2.1/cfssl" -o certs/cfssl
+	curl -L "https://github.com/projectcalico/cfssl/releases/download/1.2.1/cfssljson" -o certs/cfssljson
 	chmod a+x certs/cfssl
 	chmod a+x certs/cfssljson
 
