@@ -14,9 +14,10 @@
 from flask import Flask, jsonify, request
 import logging
 import sys
+import re
 
-from pycalico.util import generate_cali_interface_name
-from subprocess32 import CalledProcessError
+from pycalico.util import generate_cali_interface_name, IPV6_RE
+from subprocess32 import CalledProcessError, check_output
 from werkzeug.exceptions import HTTPException, default_exceptions
 from netaddr import IPAddress, IPNetwork
 from pycalico.block import AlreadyAssignedError
@@ -26,6 +27,9 @@ from pycalico import netns
 from pycalico.util import get_hostname
 
 from datastore_libnetwork import LibnetworkDatastoreClient
+
+# TODO: Move to libcalico constants
+DUMMY_IPV4_NEXTHOP = "169.254.1.1"
 
 
 # The MAC address of the interface in the container is arbitrary, so for
@@ -348,11 +352,6 @@ def create_endpoint():
 
     app.logger.info("Creating endpoint %s", endpoint_id)
 
-    # Extract relevant data from the Network data.
-    network_data = get_network_data(network_id)
-    gateway_cidr4, _ = get_gateway_pool_from_network_data(network_data, 4)
-    gateway_cidr6, _ = get_gateway_pool_from_network_data(network_data, 6)
-
     # Get the addresses to use from the request JSON.
     address_ip4 = interface.get("Address")
     address_ip6 = interface.get("AddressIPv6")
@@ -363,27 +362,11 @@ def create_endpoint():
                   "active", FIXED_MAC)
     ep.profile_ids.append(network_id)
 
-    # If either gateway indicates that we are using Calico IPAM driver then
-    # our next hops are our host IPs.  Extract these from the datastore.
-    # Note that we assume we cannot have a mixture of IPv4 and IPv6 using
-    # different drivers.
-    if (gateway_cidr4 and is_using_calico_ipam(gateway_cidr4)) or \
-       (gateway_cidr6 and is_using_calico_ipam(gateway_cidr6)):
-        app.logger.debug("Using Calico IPAM driver, get next hops")
-        next_hops = client.get_default_next_hops(hostname=hostname)
-        gateway_ip4 = next_hops.get(4)
-        gateway_ip6 = next_hops.get(6)
-    else:
-        gateway_ip4 = gateway_cidr4.ip if gateway_cidr4 else None
-        gateway_ip6 = gateway_cidr6.ip if gateway_cidr6 else None
-
     if address_ip4:
         ep.ipv4_nets.add(IPNetwork(address_ip4))
-        ep.ipv4_gateway = gateway_ip4
 
     if address_ip6:
         ep.ipv6_nets.add(IPNetwork(address_ip6))
-        ep.ipv6_gateway = gateway_ip6
 
     app.logger.debug("Saving Calico endpoint: %s", ep)
     client.set_endpoint(ep)
@@ -446,22 +429,26 @@ def join():
         # configured on the endpoint (which will be our host IPs).
         app.logger.debug("Using Calico IPAM driver, configure gateway and "
                          "static routes to the host")
-        ep = client.get_endpoint(hostname=hostname,
-                                 orchestrator_id=ORCHESTRATOR_ID,
-                                 workload_id=CONTAINER_NAME,
-                                 endpoint_id=endpoint_id)
         static_routes = []
-        if ep.ipv4_gateway:
-            json_response["Gateway"] = str(ep.ipv4_gateway)
+        if gateway_ip4:
+            json_response["Gateway"] = DUMMY_IPV4_NEXTHOP
             static_routes.append({
-                "Destination": str(IPNetwork(ep.ipv4_gateway)),
+                "Destination": DUMMY_IPV4_NEXTHOP + "/32",
                 "RouteType": 1,  # 1 = CONNECTED
                 "NextHop": ""
             })
-        if ep.ipv6_gateway:
-            json_response["GatewayIPv6"] = str(ep.ipv6_gateway)
+        if gateway_ip6:
+            # Here, we'll report the link local address of the host's cali interface to libnetwork
+            # as our IPv6 gateway. IPv6 link local addresses are automatically assigned to interfaces
+            # when they are brought up. Unfortunately, the container link must be up as well. So
+            # bring it up now
+            # TODO: create_veth should already bring up both links
+            bring_up_interface(temp_interface_name)
+            # Then extract the link local address that was just assigned to our host's interface
+            next_hop_6 = get_next_hop_6(host_interface_name)
+            json_response["GatewayIPv6"] = next_hop_6
             static_routes.append({
-                "Destination": str(IPNetwork(ep.ipv6_gateway)),
+                "Destination": str(IPNetwork(next_hop_6)),
                 "RouteType": 1,  # 1 = CONNECTED
                 "NextHop": ""
             })
@@ -648,3 +635,36 @@ def get_pool(pool_cidr):
         if pool.cidr == pool_cidr:
             return pool
     return None
+
+
+def get_next_hop_6(interface_name):
+    """
+    Runs IP routing commands to extract the currently assigned IPv6 nexthop
+    for an interface in this namespace.
+
+    :param interface_name:
+    :return:
+
+    TODO: Move this function to libcalico
+    """
+    # Find which link local was assigned to the ipv6 interface
+    try:
+        ip_addr_output = check_output(["ip", "-6", "addr", "show", "dev", interface_name])
+    except (CalledProcessError, OSError, AttributeError) as e:
+        raise Exception("Failed to get veth data for %s: %s",
+                interface_name, e)
+    app.logger.debug("Searching for linklocal of %s in: %s", interface_name, ip_addr_output)
+
+    try:
+        next_hop_6 = re.search(IPV6_RE, ip_addr_output).group(1)
+    except AttributeError:
+        raise Exception("No nexthop found for interface %s", interface_name)
+
+    app.logger.info("Got nexthop %s for interface %s", next_hop_6, interface_name)
+    return next_hop_6
+
+def bring_up_interface(interface_name):
+    """
+    Bring up an interface.
+    """
+    check_output(['ip', 'link', 'set', interface_name, 'up'], timeout=IP_CMD_TIMEOUT)
