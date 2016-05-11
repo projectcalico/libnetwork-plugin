@@ -1,4 +1,4 @@
-.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl docker install-completion
+.PHONEY: all binary test ut ut-circle st st-ssl clean setup-env run-etcd run-etcd-ssl install-completion
 
 SRCDIR=libnetwork
 SRC_FILES=$(wildcard $(SRCDIR)/*.py)
@@ -77,7 +77,7 @@ certs/.certificates.created:
 
 	touch certs/.certificates.created
 
-st:  docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
+st:  dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd
 	# Use the host, PID and network namespaces from the host.
 	# Privileged is needed since 'calico node' write to /proc (to enable ip_forwarding)
 	# Map the docker socket in so docker can be used from inside the container
@@ -97,7 +97,7 @@ st:  docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tg
 	           sh -c 'cp -ra tests/st/libnetwork/ /tests/st && cd / && nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer $(ST_OPTIONS)'
 
 ## Run the STs in a container using etcd with SSL certificate/key/CA verification.
-st-ssl: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd-ssl
+st-ssl: dist/calicoctl busybox.tgz calico-node.tgz calico-node-libnetwork.tgz run-etcd-ssl
 	# Use the host, PID and network namespaces from the host.
         # Privileged is needed since 'calico node' write to /proc (to enable ip_forwarding)
         # Map the docker socket in so docker can be used from inside the container
@@ -185,16 +185,8 @@ demo-environment: docker dist/calicoctl busybox.tgz calico-node.tgz calico-node-
 	@echo "Connect using:"
 	@echo "docker exec -ti host1 sh"
 
-docker:
-	# Download the latest docker to test.
-	curl https://get.docker.com/builds/Linux/x86_64/docker-1.10.1 -o docker
-	chmod +x docker
-
-semaphore: docker
+semaphore:
 	# Use the downloaded docker locally, not just with Docker in Docker STs
-	service docker stop
-	cp ./docker $(shell which docker)
-	service docker start
 	docker version
 
 	# Ensure Semaphore has loaded the required modules
@@ -208,7 +200,6 @@ semaphore: docker
 	make st-ssl
 
 clean:
-	-rm -f docker
 	-rm -f *.created
 	-rm -rf dist
 	-rm -rf certs

@@ -465,10 +465,11 @@ class TestPlugin(unittest.TestCase):
                            data=json.dumps(request_data))
         self.assertDictEqual(json.loads(rv.data), {"Value": {}})
 
+    @patch("libnetwork.driver_plugin.bring_up_interface")
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True)
     @patch("pycalico.netns.set_veth_mac", autospec=True)
     @patch("pycalico.netns.create_veth", autospec=True)
-    def test_join_default_ipam(self, m_create_veth, m_set_mac, m_get_network):
+    def test_join_default_ipam(self, m_create_veth, m_set_mac, m_get_network, m_intf_up):
         """
         Test the join() processing with default IPAM.
         """
@@ -509,12 +510,14 @@ class TestPlugin(unittest.TestCase):
         m_set_mac.assert_called_once_with(temp_interface_name, "EE:EE:EE:EE:EE:EE")
 
 
+    @patch("libnetwork.driver_plugin.bring_up_interface")
+    @patch("libnetwork.driver_plugin.get_next_hop_6", autospec=True, return_value="fe80::1/128")
     @patch("libnetwork.driver_plugin.client.get_endpoint", autospec=True)
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True, return_value=None)
     @patch("pycalico.netns.set_veth_mac", autospec=True)
     @patch("pycalico.netns.create_veth", autospec=True)
     def test_join_calico_ipam(self, m_create_veth, m_set_mac, m_get_network,
-                              m_get_endpoint):
+                              m_get_endpoint, m_get_next_hop_6, m_intf_up):
         """
         Test the join() processing with Calico IPAM.
         """
@@ -534,8 +537,6 @@ class TestPlugin(unittest.TestCase):
                                                TEST_ENDPOINT_ID,
                                                None,
                                                None)
-        m_get_endpoint.return_value.ipv4_gateway = IPAddress("1.2.3.4")
-        m_get_endpoint.return_value.ipv6_gateway = IPAddress("aa::ff")
 
         # Actually make the request to the plugin.
         rv = self.app.post('/NetworkDriver.Join',
@@ -549,18 +550,18 @@ class TestPlugin(unittest.TestCase):
         m_set_mac.assert_called_once_with(temp_interface_name, "EE:EE:EE:EE:EE:EE")
 
         expected_data = {
-            "Gateway": str(m_get_endpoint.return_value.ipv4_gateway),
-            "GatewayIPv6": str(m_get_endpoint.return_value.ipv6_gateway),
+            "Gateway": "169.254.1.1",
+            "GatewayIPv6": "fe80::1/128",
             "InterfaceName": {
                 "DstPrefix": "cali",
                 "SrcName": "tmpTEST_ENDPOI"
             },
             "StaticRoutes": [{
-                "Destination": str(m_get_endpoint.return_value.ipv4_gateway) +"/32",
+                "Destination": "169.254.1.1/32",
                 "RouteType": 1,
                 "NextHop": ""
             }, {
-                "Destination": str(m_get_endpoint.return_value.ipv6_gateway) + "/128",
+                "Destination": "fe80::1/128",
                 "RouteType": 1,
                 "NextHop": ""
             }]
@@ -569,18 +570,15 @@ class TestPlugin(unittest.TestCase):
         self.assertDictEqual(json.loads(rv.data),
                              expected_data)
 
-    @patch("libnetwork.driver_plugin.client.get_default_next_hops", autospec=True)
+    @patch("libnetwork.driver_plugin.bring_up_interface")
     @patch("pycalico.netns.set_veth_mac", autospec=True)
     @patch("pycalico.netns.create_veth", autospec=True)
     @patch("libnetwork.driver_plugin.remove_veth", autospec=True)
-    def test_join_veth_fail(self, m_del_veth, m_create_veth, m_set_veth_mac, m_next_hops):
+    def test_join_veth_fail(self, m_del_veth, m_create_veth, m_set_veth_macs, m_join_intf):
         """
         Test the join() processing when create_veth fails.
         """
         m_create_veth.side_effect = CalledProcessError(2, "testcmd")
-
-        m_next_hops.return_value = {4: IPAddress("1.2.3.4"),
-                                    6: None}
 
         # Actually make the request to the plugin.
         rv = self.app.post('/NetworkDriver.Join',
@@ -642,26 +640,9 @@ class TestPlugin(unittest.TestCase):
                                                   None))
         self.assertDictEqual(json.loads(rv.data), {u'Err': u''})
 
-
-    @patch("libnetwork.driver_plugin.client.get_network", autospec=True, return_value=None)
-    def test_create_endpoint_missing_network(self, _):
-        """
-        Test the create_endpoint hook behavior when missing network data.
-        """
-        rv = self.app.post('/NetworkDriver.CreateEndpoint', data="""
-                           {"EndpointID": "%s",
-                            "NetworkID":  "%s",
-                            "Interface": {"MacAddress": "EE:EE:EE:EE:EE:EE",
-                                          "Address": "1.2.3.4/32"
-                            }}""" %
-                                    (TEST_ENDPOINT_ID, TEST_NETWORK_ID))
-        expected_data = { u'Err': u"Network TEST_NETWORK_ID does not exist"}
-        self.assertDictEqual(json.loads(rv.data), expected_data)
-
-    @patch("libnetwork.driver_plugin.client.get_default_next_hops", autospec=True)
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True)
     @patch("libnetwork.driver_plugin.client.set_endpoint", autospec=True)
-    def test_create_endpoint(self, m_set, m_get_network, m_get_next_hops):
+    def test_create_endpoint(self, m_set, m_get_network):
         """
         Test the create_endpoint hook correctly writes the appropriate data
         to etcd based on IP assignment and pool selection.
@@ -680,11 +661,6 @@ class TestPlugin(unittest.TestCase):
                  (None, "ac:bb::bb", None, "00::00/0", True),
                  ("40.20.30.40", None, "0.0.0.0/0", "::/0", True),
                  ("50.20.30.40", "ad:bb::bb", "0.0.0.0/0", "00::/0", True)]
-
-        next_hop_4 = IPAddress("11.22.33.44")
-        next_hop_6 = IPAddress("a0:b0::f0")
-        m_get_next_hops.return_value = {4: next_hop_4,
-                                        6: next_hop_6}
 
         # Loop through different combinations of IP availability.
         for ipv4, ipv6, gwv4, gwv6, calico_ipam in parms:
@@ -718,17 +694,9 @@ class TestPlugin(unittest.TestCase):
 
             if ipv4:
                 ep.ipv4_nets.add(IPNetwork(ipv4))
-                if calico_ipam:
-                    ep.ipv4_gateway = next_hop_4
-                else:
-                    ep.ipv4_gateway = IPNetwork(gwv4).ip
 
             if ipv6:
                 ep.ipv6_nets.add(IPNetwork(ipv6))
-                if calico_ipam:
-                    ep.ipv6_gateway = next_hop_6
-                else:
-                    ep.ipv6_gateway = IPNetwork(gwv6).ip
 
             m_set.assert_called_once_with(ep)
 
@@ -852,3 +820,14 @@ class TestPlugin(unittest.TestCase):
                                (IPNetwork("::/0"), True)]:
             self.assertEquals(driver_plugin.is_using_calico_ipam(cidr),
                               is_cipam)
+
+    @patch("libnetwork.driver_plugin.check_output", autospec=True)
+    def test_get_nexthop_6(self, m_check_output):
+        output = """3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qlen 1000
+                        inet6 fd80:24e2:f998:72d7::2/112 scope global
+                            valid_lft forever preferred_lft forever
+                        inet6 fe80::a00:27ff:fe71:610f/64 scope link
+                            valid_lft forever preferred_lft forever"""
+        m_check_output.return_value = output
+        self.assertEqual(driver_plugin.get_next_hop_6("eth1"), "fd80:24e2:f998:72d7::2")
+        m_check_output.assert_called_with(["ip", "-6", "addr", "show", "dev", "eth1"])
