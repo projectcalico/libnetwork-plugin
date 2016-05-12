@@ -24,9 +24,10 @@ from pycalico.block import AlreadyAssignedError
 from pycalico.datastore_datatypes import IF_PREFIX, Endpoint, IPPool
 from pycalico.datastore_errors import PoolNotFound
 from pycalico import netns
-from pycalico.util import get_hostname
+from pycalico.util import get_hostname, get_ipv6_link_local
 
 from datastore_libnetwork import LibnetworkDatastoreClient
+
 
 # TODO: Move to libcalico constants
 DUMMY_IPV4_NEXTHOP = "169.254.1.1"
@@ -445,7 +446,7 @@ def join():
             # TODO: create_veth should already bring up both links
             bring_up_interface(temp_interface_name)
             # Then extract the link local address that was just assigned to our host's interface
-            next_hop_6 = get_next_hop_6(host_interface_name)
+            next_hop_6 = get_ipv6_link_local(host_interface_name)
             json_response["GatewayIPv6"] = next_hop_6
             static_routes.append({
                 "Destination": str(IPNetwork(next_hop_6)),
@@ -636,32 +637,6 @@ def get_pool(pool_cidr):
             return pool
     return None
 
-
-def get_next_hop_6(interface_name):
-    """
-    Runs IP routing commands to extract the currently assigned IPv6 nexthop
-    for an interface in this namespace.
-
-    :param interface_name:
-    :return:
-
-    TODO: Move this function to libcalico
-    """
-    # Find which link local was assigned to the ipv6 interface
-    try:
-        ip_addr_output = check_output(["ip", "-6", "addr", "show", "dev", interface_name])
-    except (CalledProcessError, OSError, AttributeError) as e:
-        raise Exception("Failed to get veth data for %s: %s",
-                interface_name, e)
-    app.logger.debug("Searching for linklocal of %s in: %s", interface_name, ip_addr_output)
-
-    try:
-        next_hop_6 = re.search(IPV6_RE, ip_addr_output).group(1)
-    except AttributeError:
-        raise Exception("No nexthop found for interface %s", interface_name)
-
-    app.logger.info("Got nexthop %s for interface %s", next_hop_6, interface_name)
-    return next_hop_6
 
 def bring_up_interface(interface_name):
     """

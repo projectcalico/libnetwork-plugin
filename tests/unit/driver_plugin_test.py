@@ -511,13 +511,13 @@ class TestPlugin(unittest.TestCase):
 
 
     @patch("libnetwork.driver_plugin.bring_up_interface")
-    @patch("libnetwork.driver_plugin.get_next_hop_6", autospec=True, return_value="fe80::1/128")
+    @patch("libnetwork.driver_plugin.get_ipv6_link_local", autospec=True, return_value="fe80::1/128")
     @patch("libnetwork.driver_plugin.client.get_endpoint", autospec=True)
     @patch("libnetwork.driver_plugin.client.get_network", autospec=True, return_value=None)
     @patch("pycalico.netns.set_veth_mac", autospec=True)
     @patch("pycalico.netns.create_veth", autospec=True)
     def test_join_calico_ipam(self, m_create_veth, m_set_mac, m_get_network,
-                              m_get_endpoint, m_get_next_hop_6, m_intf_up):
+                              m_get_endpoint, m_get_link_local, m_intf_up):
         """
         Test the join() processing with Calico IPAM.
         """
@@ -821,13 +821,3 @@ class TestPlugin(unittest.TestCase):
             self.assertEquals(driver_plugin.is_using_calico_ipam(cidr),
                               is_cipam)
 
-    @patch("libnetwork.driver_plugin.check_output", autospec=True)
-    def test_get_nexthop_6(self, m_check_output):
-        output = """3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qlen 1000
-                        inet6 fd80:24e2:f998:72d7::2/112 scope global
-                            valid_lft forever preferred_lft forever
-                        inet6 fe80::a00:27ff:fe71:610f/64 scope link
-                            valid_lft forever preferred_lft forever"""
-        m_check_output.return_value = output
-        self.assertEqual(driver_plugin.get_next_hop_6("eth1"), "fd80:24e2:f998:72d7::2")
-        m_check_output.assert_called_with(["ip", "-6", "addr", "show", "dev", "eth1"])
