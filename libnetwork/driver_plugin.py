@@ -95,7 +95,7 @@ def make_json_app(import_name, **kwargs):
     wrapped_app = Flask(import_name, **kwargs)
 
     for code in default_exceptions.iterkeys():
-        wrapped_app.error_handler_spec[None][code] = make_json_error
+        wrapped_app.errorhandler(code)(make_json_error)
 
     return wrapped_app
 
