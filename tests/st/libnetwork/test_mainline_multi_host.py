@@ -91,7 +91,8 @@ class MultiHostMainline(TestBase):
             # 1, and not those on network 2.  Ping using IP for all workloads,
             # and by hostname for workloads on the same network (note that
             # a workloads own hostname does not work).
-            self.assert_connectivity(pass_list=[workload_h1n1_1,
+            self.assert_connectivity(retries=2,
+                                     pass_list=[workload_h1n1_1,
                                                 workload_h1n1_2,
                                                 workload_h2n1_1])
             # TODO: docker_gwbridge iptable FORWARD rule takes precedence over
