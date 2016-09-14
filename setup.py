@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2014-2016 Tigera, Inc. All rights reserved.
+# Copyright (c) 2016 Tigera, Inc. All rights reserved.
 #
 # All Rights Reserved.
 #
@@ -57,10 +57,4 @@ setuptools.setup(
     "git+https://github.com/projectcalico/python-etcd.git",
     "git+https://github.com/projectcalico/libcalico.git"
     ]
-
-    #   entry_points="""
-    #   # -*- Entry points: -*-
-    #   """,
-
-
 )
