@@ -17,7 +17,7 @@
 
 import setuptools
 
-version = '0.9.0'
+version = '0.9.0-dev'
 
 setuptools.setup(
     name='libnetwork',
@@ -49,8 +49,7 @@ setuptools.setup(
      # What does your project relate to?
     keywords='calico docker etcd mesos kubernetes rkt openstack',
 
-    packages=setuptools.find_packages(exclude=['ez_setup', 'examples', 'tests']),
-    include_package_data=True,
+    packages=["libnetwork"],
     
     install_requires=['netaddr', 'python-etcd>=0.4.3', 'subprocess32', 'flask', 'gunicorn', 'gevent'],
     dependency_links=[

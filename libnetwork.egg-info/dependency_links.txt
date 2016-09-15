@@ -1,2 +1,0 @@
-git+https://github.com/projectcalico/python-etcd.git
-git+https://github.com/projectcalico/libcalico.git
