@@ -18,7 +18,7 @@ from tests.st.libnetwork.test_mainline_single_host import \
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
 from tests.st.utils.exceptions import CommandExecError
-from tests.st.utils.utils import assert_network, assert_profile, \
+from tests.st.utils.utils import get_ip, assert_network, assert_profile, \
     assert_number_endpoints, get_profile_name
 
 
@@ -32,10 +32,8 @@ class MultiHostMainline(TestBase):
         functionality in a single test.
 
         - Create two hosts
-        - Create a network using the default IPAM driver, and a workload on
-          each host assigned to that network.
-        - Create a network using the Calico IPAM driver, and a workload on
-          each host assigned to that network.
+        - Create two networks, both using Calico for IPAM and networking.
+        - Create a workload on each host in each network.
         - Check that hosts on the same network can ping each other.
         - Check that hosts on different networks cannot ping each other.
         """
@@ -47,109 +45,92 @@ class MultiHostMainline(TestBase):
                        additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
                        post_docker_commands=POST_DOCKER_COMMANDS,
                        start_calico=False) as host2:
-            # TODO work IPv6 into this test too
-            host1.start_calico_node("--libnetwork")
-            host2.start_calico_node("--libnetwork")
+            run_plugin_command = 'docker run -d ' \
+                                 '--net=host --privileged ' + \
+                                 '-e CALICO_ETCD_AUTHORITY=%s:2379 ' \
+                                 '-v /run/docker/plugins:/run/docker/plugins ' \
+                                 '-v /var/run/docker.sock:/var/run/docker.sock ' \
+                                 '-v /lib/modules:/lib/modules ' \
+                                 '--name libnetwork-plugin ' \
+                                 'calico/libnetwork-plugin' % (get_ip(),)
+
+            host1.start_calico_node()
+            host1.execute(run_plugin_command)
+
+            host2.start_calico_node()
+            host2.execute(run_plugin_command)
 
             # Create the networks on host1, but it should be usable from all
             # hosts.  We create one network using the default driver, and the
             # other using the Calico driver.
-            network1 = host1.create_network("testnet1", ipam_driver="default")
-            network2 = host1.create_network("testnet2", ipam_driver="calico")
+            testnet1 = host1.create_network("testnet1", ipam_driver="calico-ipam", driver="calico")
+            testnet2 = host1.create_network("testnet2", ipam_driver="calico-ipam", driver="calico")
 
             # Assert that the networks can be seen on host2
-            assert_network(host2, network2)
-            assert_network(host2, network1)
+            assert_network(host2, testnet1)
+            assert_network(host2, testnet2)
 
+            # Create two workloads on host1 - one in each network
+            workload_h1n1 = host1.create_workload("workload_h1n1",
+                                                    network=testnet1)
+            workload_h1n2 = host1.create_workload("workload_h1n2",
+                                                    network=testnet2)
+
+            # Profiles aren't created until a workloads are created.
             # Assert that the profiles have been created for the networks
-            profile_name1 = get_profile_name(host1, network1)
-            assert_profile(host1, profile_name1)
-            profile_name2 = get_profile_name(host1, network2)
-            assert_profile(host1, profile_name2)
-
-            # Create two workloads on host1 and one on host2 all in network 1.
-            workload_h1n2_1 = host1.create_workload("workload_h1n2_1",
-                                                    network=network2)
-            workload_h1n2_2 = host1.create_workload("workload_h1n2_2",
-                                                    network=network2)
-            workload_h2n2_1 = host2.create_workload("workload_h2n2_1",
-                                                    network=network2)
+            assert_profile(host1, "testnet1")
 
             # Create similar workloads in network 2.
-            workload_h2n1_1 = host2.create_workload("workload_h2n1_1",
-                                                    network=network1)
-            workload_h1n1_1 = host1.create_workload("workload_h1n1_1",
-                                                    network=network1)
-            workload_h1n1_2 = host1.create_workload("workload_h1n1_2",
-                                                    network=network1)
+            workload_h2n1 = host2.create_workload("workload_h2n1",
+                                                    network=testnet1)
+            workload_h2n2 = host2.create_workload("workload_h2n2",
+                                                    network=testnet2)
+            assert_profile(host1, "testnet2")
 
             # Assert that endpoints are in Calico
-            assert_number_endpoints(host1, 4)
+            assert_number_endpoints(host1, 2)
             assert_number_endpoints(host2, 2)
 
             # Assert that workloads can communicate with each other on network
             # 1, and not those on network 2.  Ping using IP for all workloads,
             # and by hostname for workloads on the same network (note that
             # a workloads own hostname does not work).
-            self.assert_connectivity(retries=2,
-                                     pass_list=[workload_h1n1_1,
-                                                workload_h1n1_2,
-                                                workload_h2n1_1])
-            # TODO: docker_gwbridge iptable FORWARD rule takes precedence over
-            # Felix, resulting in temporary lack of isolation between a
-            # container on the bridge communicating with a non-bridge container
-            # on the same host.  Therefore we cannot yet test isolation.
-            #                          fail_list=[workload_h1n2_1,
-            #                                     workload_h1n2_2,
-            #                                     workload_h2n2_1])
-            workload_h1n1_1.execute("ping -c 1 -W 1 workload_h1n1_2")
-            workload_h1n1_1.execute("ping -c 1 -W 1 workload_h2n1_1")
+            self.assert_connectivity(retries=5,
+                                     pass_list=[workload_h1n1,
+                                                workload_h2n1],
+                                     fail_list=[workload_h1n2,
+                                                workload_h2n2])
 
-            # Repeat with network 2.
-            self.assert_connectivity(pass_list=[workload_h1n2_1,
-                                                workload_h1n2_2,
-                                                workload_h2n2_1])
-            # TODO - see comment above
-            #                         fail_list=[workload_h1n1_1,
-            #                                    workload_h1n1_2,
-            #                                    workload_h1n1_1])
-            workload_h1n2_1.execute("ping -c 1 -W 1 workload_h1n2_2")
-            workload_h1n2_1.execute("ping -c 1 -W 1 workload_h2n2_1")
+            workload_h1n1.execute("ping -c 1 -W 5 workload_h2n1")
+            workload_h2n1.execute("ping -c 1 -W 5 workload_h1n1")
 
             # Test deleting the network. It will fail if there are any
             # endpoints connected still.
-            self.assertRaises(CommandExecError, network1.delete)
-            self.assertRaises(CommandExecError, network2.delete)
+            self.assertRaises(CommandExecError, testnet1.delete)
+            self.assertRaises(CommandExecError, testnet2.delete)
 
             # For network 1, disconnect (or "detach" or "leave") the endpoints
             # Assert that an endpoint is removed from calico and can't ping
-            network1.disconnect(host1, workload_h1n1_1)
-            network1.disconnect(host1, workload_h1n1_2)
-            assert_number_endpoints(host1, 2)
-            network1.disconnect(host2, workload_h2n1_1)
+            testnet1.disconnect(host1, workload_h1n1)
+            assert_number_endpoints(host1, 1)
+            testnet1.disconnect(host2, workload_h2n1)
             assert_number_endpoints(host2, 1)
-            workload_h1n1_1.assert_cant_ping(workload_h2n2_1.ip, retries=5)
+
+            workload_h1n1.assert_cant_ping(workload_h2n1.ip, retries=5)
 
             # Repeat for network 2.  All endpoints should be removed.
-            network2.disconnect(host1, workload_h1n2_1)
-            network2.disconnect(host1, workload_h1n2_2)
+            testnet2.disconnect(host1, workload_h1n2)
             assert_number_endpoints(host1, 0)
-            network2.disconnect(host2, workload_h2n2_1)
+            testnet2.disconnect(host2, workload_h2n2)
             assert_number_endpoints(host2, 0)
-            workload_h1n1_1.assert_cant_ping(workload_h2n2_1.ip, retries=5)
+            workload_h1n2.assert_cant_ping(workload_h2n2.ip, retries=5)
 
             # Remove the workloads, so the endpoints can be unpublished, then
             # the delete should succeed.
             host1.remove_workloads()
             host2.remove_workloads()
 
-            # Remove the network and assert profile is removed
-            network1.delete()
-            network2.delete()
-            self.assertRaises(AssertionError, assert_profile, host1,
-                              profile_name1)
-
-            # TODO - Remove this calico node
-
-            # TODO Would like to assert that there are no errors in the logs...
+            # Remove the network
+            testnet1.delete()
+            testnet2.delete()
 

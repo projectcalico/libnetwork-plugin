@@ -1,7 +1,0 @@
-netaddr
-flask
-gunicorn
-subprocess32
-gevent
-git+https://github.com/projectcalico/python-etcd.git
-git+https://github.com/projectcalico/libcalico.git

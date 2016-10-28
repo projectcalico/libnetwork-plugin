@@ -13,9 +13,13 @@
 # limitations under the License.
 import logging
 
+from subprocess import check_output
+
 from tests.st.test_base import TestBase
 from tests.st.utils.docker_host import DockerHost
-from tests.st.utils.utils import assert_number_endpoints
+from tests.st.utils.utils import (
+    assert_number_endpoints, get_ip, log_and_run, retry_until_success, ETCD_SCHEME,
+    ETCD_CA, ETCD_KEY, ETCD_CERT, ETCD_HOSTNAME_SSL)
 from tests.st.libnetwork.test_mainline_single_host import \
     ADDITIONAL_DOCKER_OPTIONS, POST_DOCKER_COMMANDS
 
@@ -28,43 +32,32 @@ class TestAssignIP(TestBase):
         Test that a libnetwork assigned IP is allocated to the container with
         Calico when using the '--ip' flag on docker run.
         """
-        with DockerHost('host1',
+        with DockerHost('host',
                         additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
-                        post_docker_commands=POST_DOCKER_COMMANDS,
-                        start_calico=False) as host1, \
-            DockerHost('host2',
-                       additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
-                       post_docker_commands=POST_DOCKER_COMMANDS,
-                       start_calico=False) as host2:
+                        post_docker_commands=["docker load -i /code/busybox.tar",
+                        "docker load -i /code/calico-node-libnetwork.tar"],
+                        start_calico=False) as host:
 
-            host1.start_calico_node("--libnetwork")
-            host2.start_calico_node("--libnetwork")
+            run_plugin_command = 'docker run -d ' \
+                                '--net=host --privileged ' + \
+                                '-e CALICO_ETCD_AUTHORITY=%s:2379 ' \
+                                '-v /run/docker/plugins:/run/docker/plugins ' \
+                                '-v /var/run/docker.sock:/var/run/docker.sock ' \
+                                '-v /lib/modules:/lib/modules ' \
+                                '--name libnetwork-plugin ' \
+                                'calico/libnetwork-plugin' % (get_ip(),)
 
-            # Set up one endpoints on each host
-            workload1_ip = "192.168.1.101"
-            workload2_ip = "192.168.1.102"
+            host.execute(run_plugin_command)
             subnet = "192.168.0.0/16"
-            network = host1.create_network("testnet", subnet=subnet)
-            workload1 = host1.create_workload("workload1",
+            host.calicoctl('pool add %s' % subnet)
+
+            workload_ip = "192.168.1.101"
+
+            network = host.create_network(
+                "specificipnet", subnet=subnet, driver="calico", ipam_driver="calico-ipam")
+
+            workload = host.create_workload("workload1",
                                               network=network,
-                                              ip=workload1_ip)
-            workload2 = host2.create_workload("workload2",
-                                              network=network,
-                                              ip=workload2_ip)
+                                              ip=workload_ip)
 
-            self.assertEquals(workload1_ip, workload1.ip)
-            self.assertEquals(workload2_ip, workload2.ip)
-
-            # Allow network to converge
-            # Check connectivity with assigned IPs
-            workload1.assert_can_ping(workload2_ip, retries=5)
-            workload2.assert_can_ping(workload1_ip, retries=5)
-
-            # Disconnect endpoints from the network
-            # Assert can't ping and endpoints are removed from Calico
-            network.disconnect(host1, workload1)
-            network.disconnect(host2, workload2)
-            workload1.assert_cant_ping(workload2_ip, retries=5)
-            assert_number_endpoints(host1, 0)
-            assert_number_endpoints(host2, 0)
-            network.delete()
+            self.assertEquals(workload_ip, workload.ip)

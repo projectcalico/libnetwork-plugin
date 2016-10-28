@@ -1,0 +1,18 @@
+package: github.com/projectcalico/libnetwork-plugin
+import:
+- package: github.com/docker/engine-api
+  subpackages:
+  - client
+- package: github.com/docker/go-plugins-helpers
+  subpackages:
+  - ipam
+  - network
+- package: github.com/pkg/errors
+  version: ^0.8.0
+- package: github.com/projectcalico/libcalico-go
+  subpackages:
+  - lib/api
+  - lib/client
+  - lib/errors
+  - lib/net
+- package: github.com/vishvananda/netlink
