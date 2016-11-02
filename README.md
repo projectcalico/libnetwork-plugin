@@ -29,9 +29,7 @@ driver:
    once a container endpoint is created, it is possible to manually add 
    additional Calico profiles to that endpoint (effectively adding the 
    container into another network).
--  When using the Calico IPAM driver, it is not yet possible to select which
-   IP Pool an IP is assigned from.  Make sure all of your configured IP Pools
-   have the same ipip and nat-outgoing settings.
+- IPv6 is not currently supported
 
 ## Troubleshooting
 

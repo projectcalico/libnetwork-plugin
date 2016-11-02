@@ -69,6 +69,10 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 		return nil, err
 	}
 
+	// Default the poolID to the fixed value.
+	poolID := i.poolIDV4
+	pool:="0.0.0.0/0"
+
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
 	if request.Pool != "" {
@@ -88,15 +92,17 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 			i.logger.Println(err)
 			return nil, err
 		}
+		pool = request.Pool
+		poolID = request.Pool
 	}
 
-	// We use static pool ID and CIDR to indicate that we are assigning from all of the pools.
+	// We use static pool ID and CIDR. We don't need to signal the
 	// The meta data includes a dummy gateway address. This prevents libnetwork
 	// from requesting a gateway address from the pool since for a Calico
 	// network our gateway is set to a special IP.
 	resp := &ipam.RequestPoolResponse{
-		PoolID: i.poolIDV4,
-		Pool:   "0.0.0.0/0",
+		PoolID: poolID,
+		Pool:   pool,
 		Data:   map[string]string{"com.docker.network.gateway": "0.0.0.0/0"},
 	}
 
@@ -144,11 +150,12 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 				return nil, errors.New(message)
 			}
 			poolV4 = &caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}
+			i.logger.Println("Using specific pool ", poolV4)
 		}
 
-		// Auto assign an IP based on whether the IPv4 or IPv6 pool was selected.
-		// We auto-assign from all available pools with affinity based on our
-		// host.
+		// Auto assign an IP address.
+		// IPv4 pool will be nil if the docker network doesn't have a subnet associated with.
+		// Otherwise, it will be set to the Calico pool to assign from.
 		IPsV4, IPsV6, err := i.client.IPAM().AutoAssign(
 			datastoreClient.AutoAssignArgs{
 				Num4:     1,
@@ -157,6 +164,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 				IPv4Pool: poolV4,
 			},
 		)
+
 		if err != nil {
 			err = errors.Wrapf(err, "IP assignment error")
 			i.logger.Println(err)
@@ -164,6 +172,9 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		}
 		IPs = append(IPsV4, IPsV6...)
 	} else {
+		// Docker allows the users to specify any address.
+		// We'll return an error if the address isn't in a Calico pool, but we don't care which pool it's in
+		// (i.e. it doesn't need to match the subnet from the docker network).
 		i.logger.Println("Reserving a specific address in Calico pools")
 		ip := net.ParseIP(request.Address)
 		ipArgs := datastoreClient.AssignIPArgs{
