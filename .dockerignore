@@ -1,7 +1,6 @@
 .git
-venv
+vendor
+*.tar
 build
-busybox.tar
-calico-node.tar
 default.etcd
 .semaphore-cache

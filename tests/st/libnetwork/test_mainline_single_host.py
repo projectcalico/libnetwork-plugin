@@ -1,4 +1,4 @@
-# Copyright 2015 Metaswitch Networks
+# Copyright 2015 Tigera, Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,41 +17,43 @@ from tests.st.test_base import TestBase
 from tests.st.utils import utils
 from tests.st.utils.docker_host import DockerHost
 import logging
-from tests.st.utils.utils import assert_number_endpoints, assert_profile, \
+from tests.st.utils.utils import get_ip, assert_number_endpoints, assert_profile, \
     get_profile_name, ETCD_CA, ETCD_CERT, ETCD_KEY, ETCD_HOSTNAME_SSL, \
     ETCD_SCHEME
 
 logger = logging.getLogger(__name__)
 
-POST_DOCKER_COMMANDS = ["docker load -i /code/calico-node.tgz",
-                        "docker load -i /code/busybox.tgz",
-                        "docker load -i /code/calico-node-libnetwork.tgz"]
+POST_DOCKER_COMMANDS = ["docker load -i /code/calico-node.tar",
+                        "docker load -i /code/busybox.tar",
+                        "docker load -i /code/calico-node-libnetwork.tar"]
 
-if ETCD_SCHEME == "https":
-    ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379 " \
-                                "--cluster-store-opt kv.cacertfile=%s " \
-                                "--cluster-store-opt kv.certfile=%s " \
-                                "--cluster-store-opt kv.keyfile=%s " % \
-                                (ETCD_HOSTNAME_SSL, ETCD_CA, ETCD_CERT,
-                                 ETCD_KEY)
-else:
-    ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379 " % \
-                                utils.get_ip()
+ADDITIONAL_DOCKER_OPTIONS = "--cluster-store=etcd://%s:2379 " % utils.get_ip()
+
 
 class TestMainline(TestBase):
     def test_mainline(self):
         """
         Setup two endpoints on one host and check connectivity then teardown.
         """
-        # TODO - add in IPv6 as part of this flow.
         with DockerHost('host',
                         additional_docker_options=ADDITIONAL_DOCKER_OPTIONS,
                         post_docker_commands=POST_DOCKER_COMMANDS,
                         start_calico=False) as host:
-            host.start_calico_node("--libnetwork")
+
+            run_plugin_command = 'docker run -d ' \
+                                 '--net=host --privileged ' + \
+                                 '-e CALICO_ETCD_AUTHORITY=%s:2379 ' \
+                                 '-v /run/docker/plugins:/run/docker/plugins ' \
+                                 '-v /var/run/docker.sock:/var/run/docker.sock ' \
+                                 '-v /lib/modules:/lib/modules ' \
+                                 '--name libnetwork-plugin ' \
+                                 'calico/libnetwork-plugin' % (get_ip(),)
+
+            host.start_calico_node()
+            host.execute(run_plugin_command)
 
             # Set up two endpoints on one host
-            network = host.create_network("testnet")
+            network = host.create_network("testnet", driver="calico", ipam_driver="calico-ipam")
             workload1 = host.create_workload("workload1", network=network)
             workload2 = host.create_workload("workload2", network=network)
 
@@ -59,8 +61,7 @@ class TestMainline(TestBase):
             assert_number_endpoints(host, 2)
 
             # Assert that the profile has been created for the network
-            profile_name = get_profile_name(host, network)
-            assert_profile(host, profile_name)
+            assert_profile(host, "testnet")
 
             # Allow network to converge
             # Check connectivity.
@@ -87,6 +88,6 @@ class TestMainline(TestBase):
 
             # Remove the network and assert profile is removed
             network.delete()
-            self.assertRaises(AssertionError, assert_profile, host, profile_name)
 
-            # TODO - Remove this calico node
+            # TODO - should deleting the network delete the profile or not?
+            # self.assertRaises(AssertionError, assert_profile, host, "testnet")
