@@ -48,16 +48,26 @@ class TestAssignIP(TestBase):
                                 'calico/libnetwork-plugin' % (get_ip(),)
 
             host.execute(run_plugin_command)
-            subnet = "192.168.0.0/16"
-            host.calicoctl('pool add %s' % subnet)
+            subnet1 = "192.168.0.0/16"
+            subnet2 = "10.11.0.0/16"
+            host.calicoctl('pool add %s' % subnet1)
+            host.calicoctl('pool add %s' % subnet2)
 
-            workload_ip = "192.168.1.101"
+            workload_ip1 = "192.168.1.101"
+            workload_ip2 = "10.11.12.13"
 
-            network = host.create_network(
-                "specificipnet", subnet=subnet, driver="calico", ipam_driver="calico-ipam")
+            network1 = host.create_network(
+                "subnet1", subnet=subnet1, driver="calico", ipam_driver="calico-ipam")
+            network2 = host.create_network(
+                "subnet2", subnet=subnet2, driver="calico", ipam_driver="calico-ipam")
 
-            workload = host.create_workload("workload1",
-                                              network=network,
-                                              ip=workload_ip)
+            workload1 = host.create_workload("workload1",
+                                              network=network1,
+                                              ip=workload_ip1)
+            self.assertEquals(workload_ip1, workload1.ip)
 
-            self.assertEquals(workload_ip, workload.ip)
+            workload2 = host.create_workload("workload2",
+                                            network=network2,
+                                            ip=workload_ip2)
+
+            self.assertEquals(workload_ip2, workload2.ip)

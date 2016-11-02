@@ -22,7 +22,7 @@ import (
 )
 
 // NetworkDriver is the Calico network driver representation.
-// Must be used with Calico IPAM and support IPv4 only.
+// Must be used with Calico IPAM and supports IPv4 only.
 type NetworkDriver struct {
 	client *datastoreClient.Client
 	logger *log.Logger
@@ -157,7 +157,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		}
 	}
 
-	// Create the endpoint
+	// Create the endpoint last to minimize side-effects if something goes wrong.
 	_, err = d.client.WorkloadEndpoints().Create(endpoint)
 	if err != nil {
 		err = errors.Wrapf(err, "Workload endpoints creation error, data: %+v", endpoint)
@@ -180,14 +180,13 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 
 func (d NetworkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
 	logutils.JSONMessage(d.logger, "DeleteEndpoint JSON=%v", request)
+	d.logger.Printf("Removing endpoint %v\n", request.EndpointID)
+
 	hostname, err := osutils.GetHostname()
 	if err != nil {
 		err = errors.Wrap(err, "Hostname fetching error")
 		return err
 	}
-
-	logutils.JSONMessage(d.logger, "DeleteEndpoint JSON=%v", request)
-	d.logger.Printf("Removing endpoint %v\n", request.EndpointID)
 
 	if err = d.client.WorkloadEndpoints().Delete(
 		api.WorkloadEndpointMetadata{
@@ -248,8 +247,7 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 	// One of the network gateway addresses indicate that we are using
 	// Calico IPAM driver.  In this case we setup routes using the gateways
 	// configured on the endpoint (which will be our host IPs).
-	d.logger.Println("Using Calico IPAM driver, configure gateway and " +
-		"static routes to the host")
+	d.logger.Println("Using Calico IPAM driver, configure gateway and static routes to the host")
 
 	resp.Gateway = d.DummyIPV4Nexthop
 	resp.StaticRoutes = append(resp.StaticRoutes, &network.StaticRoute{
