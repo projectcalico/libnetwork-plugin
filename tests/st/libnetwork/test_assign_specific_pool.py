@@ -27,8 +27,8 @@ from netaddr import *
 logger = logging.getLogger(__name__)
 
 
-class TestAssignIP(TestBase):
-    def test_assign_specific_ip(self):
+class TestAssignPool(TestBase):
+    def test_assign_specific_pool(self):
         """
         Test that a libnetwork assigned IP is allocated to the container with
         Calico when using the '--ip' flag on docker run.

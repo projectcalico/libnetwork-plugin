@@ -121,7 +121,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	endpoint.Metadata.Name = request.EndpointID
 	endpoint.Spec.InterfaceName = "cali" + request.EndpointID[:mathutils.MinInt(11, len(request.EndpointID))]
 	mac, _ := net.ParseMAC(d.fixedMac)
-	endpoint.Spec.MAC = caliconet.MAC{HardwareAddr: mac}
+	endpoint.Spec.MAC = &caliconet.MAC{HardwareAddr: mac}
 	endpoint.Spec.IPNetworks = append(endpoint.Spec.IPNetworks, addresses...)
 
 	// Use the Docker API to fetch the network name (so we don't have to use an ID everywhere)

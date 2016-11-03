@@ -6,7 +6,7 @@ ST_TO_RUN?=tests/st
 # Can exclude the slower tests with "-a '!slow'"
 ST_OPTIONS?=
 HOST_CHECKOUT_DIR?=$(shell pwd)
-
+PLUGIN_VERSION?=$(shell git describe --tags --dirty)
 default: all
 all: test
 test: st
@@ -27,8 +27,7 @@ install:
 	CGO_ENABLED=0 go install github.com/projectcalico/libnetwork-plugin
 
 # Run the build in a container. Useful for CI
-.PHONY: build-containerized
-build-containerized: vendor
+dist/libnetwork-plugin: vendor
 	mkdir -p dist
 	docker run --rm \
 	-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
@@ -40,15 +39,15 @@ build-containerized: vendor
 
 
 build: $(SRC_FILES) vendor
-	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
+	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(PLUGIN_VERSION) -s -w" main.go
 
-libnetwork-plugin.created: Dockerfile build-containerized
+libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
 	docker build -t calico/libnetwork-plugin .
 	touch libnetwork-plugin.created
 
 dist/calicoctl:
 	mkdir dist
-	curl -L http://www.projectcalico.org/builds/calicoctl -o dist/calicoctl
+	curl -L https://github.com/projectcalico/calico-containers/releases/download/v0.23.0/calicoctl -o dist/calicoctl
 	chmod +x dist/calicoctl
 
 busybox.tar:
@@ -56,8 +55,8 @@ busybox.tar:
 	docker save busybox:latest -o busybox.tar
 
 calico-node.tar:
-	docker pull calico/node:latest
-	docker save calico/node:latest -o calico-node.tar
+	docker pull calico/node:v0.23.0
+	docker save calico/node:v0.23.0 -o calico-node.tar
 
 calico-node-libnetwork.tar: libnetwork-plugin.created
 	docker save calico/libnetwork-plugin:latest -o calico-node-libnetwork.tar
@@ -126,6 +125,14 @@ semaphore:
 
 	# Run the STs
 	make st
+
+release: libnetwork-plugin.created
+	dist/libnetwork-plugin -v
+	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(PLUGIN_VERSION)
+	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin:$(PLUGIN_VERSION)
+
+	docker push calico/libnetwork-plugin:$(PLUGIN_VERSION)
+	docker push quay.io/calico/libnetwork-plugin:$(PLUGIN_VERSION)
 
 clean:
 	-rm -f *.created

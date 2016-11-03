@@ -76,7 +76,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
 	if request.Pool != "" {
-		poolsClient := i.client.Pools()
+		poolsClient := i.client.IPPools()
 		_, ipNet, err := caliconet.ParseCIDR(request.Pool)
 		if err != nil {
 			err := errors.New("Invalid CIDR")
@@ -84,7 +84,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 			return nil, err
 		}
 
-		pools, err := poolsClient.List(api.PoolMetadata{CIDR: *ipNet})
+		pools, err := poolsClient.List(api.IPPoolMetadata{CIDR: *ipNet})
 		if err != nil || len(pools.Items) < 1 {
 			err := errors.New("The requested subnet must match the CIDR of a " +
 				"configured Calico IP Pool.",
@@ -134,14 +134,14 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// poolV4 defaults to nil to assign from across all pools.
 		var poolV4 *caliconet.IPNet
 		if request.PoolID != PoolIDV4 {
-			poolsClient := i.client.Pools()
+			poolsClient := i.client.IPPools()
 			_, ipNet, err := caliconet.ParseCIDR(request.PoolID)
 
 			if err != nil {
 				err = errors.Wrapf(err, "Invalid CIDR - %v", request.PoolID)
 				return nil, err
 			}
-			pool, err := poolsClient.Get(api.PoolMetadata{CIDR: *ipNet})
+			pool, err := poolsClient.Get(api.IPPoolMetadata{CIDR: *ipNet})
 			if err != nil {
 				message := "The network references a Calico pool which " +
 					"has been deleted. Please re-instate the " +

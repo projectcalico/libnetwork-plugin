@@ -4,12 +4,14 @@ import:
   subpackages:
   - client
 - package: github.com/docker/go-plugins-helpers
+  version: 8a0198e77ac4e4ee167222caf6894cb32386c5fc
   subpackages:
   - ipam
   - network
 - package: github.com/pkg/errors
   version: ^0.8.0
 - package: github.com/projectcalico/libcalico-go
+  version: v1.0.0-beta-rc1
   subpackages:
   - lib/api
   - lib/client
