@@ -102,7 +102,7 @@ st:  dist/calicoctl busybox.tar calico-node.tar calico-node-libnetwork.tar run-e
 	           --rm -ti \
 	           -v /var/run/docker.sock:/var/run/docker.sock \
 	           -v $(CURDIR):/code \
-	           calico/test \
+						 calico/test:v0.18.0 \
 	           sh -c 'cp -ra tests/st/libnetwork/ /tests/st && cd / && nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer $(ST_OPTIONS)'
 
 run-plugin: libnetwork-plugin.created
