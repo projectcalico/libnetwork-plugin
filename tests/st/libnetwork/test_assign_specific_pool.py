@@ -64,4 +64,4 @@ class TestAssignPool(TestBase):
             # Create a workload on network2 and check that it gets an IP in the right subnet.
             workload2 = host.create_workload("workload2", network=network2)
             # Test commented out due to bug in libcalico-go
-            # self.assertTrue(IPAddress(workload2.ip) in IPNetwork(subnet2))
+            self.assertTrue(IPAddress(workload2.ip) in IPNetwork(subnet2))

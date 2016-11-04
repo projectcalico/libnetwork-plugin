@@ -1,5 +1,5 @@
-hash: f27d008c65bf5742887d0d804a3c7f0ad4381d5a7dfd24a4b72e1d6eaf526309
-updated: 2016-11-03T10:42:11.493377427-07:00
+hash: 7d8bca23b76b80758e465d7da39c4194526831feaebfc98bd6dbd866893240be
+updated: 2016-11-04T13:37:42.488569568-07:00
 imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
@@ -129,7 +129,7 @@ imports:
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/projectcalico/libcalico-go
-  version: 07933e320e9c551090fb2b4ef0680d8320c4345f
+  version: 2ae440e73785b27eeee2888ecaf772237f8ea41f
   subpackages:
   - lib/api
   - lib/api/unversioned
@@ -152,7 +152,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/Sirupsen/logrus
-  version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/pflag
   version: 5644820622454e71517561946e3d94b9f9db6842
 - name: github.com/ugorji/go
