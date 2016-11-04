@@ -28,7 +28,7 @@ install:
 
 # Run the build in a container. Useful for CI
 dist/libnetwork-plugin: vendor
-	mkdir -p dist
+	-mkdir -p dist
 	docker run --rm \
 	-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
 	-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
@@ -46,7 +46,7 @@ libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
 	touch libnetwork-plugin.created
 
 dist/calicoctl:
-	mkdir dist
+	-mkdir -p dist
 	curl -L https://github.com/projectcalico/calico-containers/releases/download/v0.23.0/calicoctl -o dist/calicoctl
 	chmod +x dist/calicoctl
 

@@ -1,5 +1,5 @@
-hash: 7d8bca23b76b80758e465d7da39c4194526831feaebfc98bd6dbd866893240be
-updated: 2016-11-04T13:37:42.488569568-07:00
+hash: 806d18fbe332ed8f12782b0708168585edaf021892d2dffd5c9fd1999db3f3bc
+updated: 2016-11-04T15:58:52.996242696-07:00
 imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
@@ -129,7 +129,7 @@ imports:
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/projectcalico/libcalico-go
-  version: 2ae440e73785b27eeee2888ecaf772237f8ea41f
+  version: 5d335f678e2b3e50541d0dc5ab4f43bad35d0f5b
   subpackages:
   - lib/api
   - lib/api/unversioned
