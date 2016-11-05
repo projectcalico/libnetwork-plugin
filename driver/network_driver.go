@@ -69,7 +69,11 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 	logutils.JSONMessage(d.logger, "CreateNetwork JSON=%s", request)
 
 	for _, ipData := range request.IPv4Data {
-		if ipData.AddressSpace != CalicoGlobalAddressSpace {
+		// Older version of Docker have a bug where they don't provide the correct AddressSpace
+		// so we can't check for calico IPAM using our know address space.
+		// Also the pool might not have a fixed values if --subnet was passed
+		// So the only safe thing is to check for our special gateway value
+		if ipData.Gateway != "0.0.0.0/0" {
 			err := errors.New("Non-Calico IPAM driver is used")
 			d.logger.Println(err)
 			return err

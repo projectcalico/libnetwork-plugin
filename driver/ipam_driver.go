@@ -71,7 +71,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 
 	// Default the poolID to the fixed value.
 	poolID := i.poolIDV4
-	pool:="0.0.0.0/0"
+	pool := "0.0.0.0/0"
 
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
