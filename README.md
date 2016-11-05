@@ -1,5 +1,4 @@
 [![Build Status](https://semaphoreci.com/api/v1/projects/d51a0276-7939-409e-80ac-aa5df9421fef/510521/badge.svg)](https://semaphoreci.com/calico/libnetwork-plugin)
-[![Circle CI](https://circleci.com/gh/projectcalico/libnetwork-plugin/tree/master.svg?style=svg)](https://circleci.com/gh/projectcalico/libnetwork-plugin/tree/master)
 
 # Libnetwork plugin for Calico
 
