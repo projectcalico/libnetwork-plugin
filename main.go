@@ -59,7 +59,7 @@ func main() {
 		logger.Fatalln(err)
 	}
 	if *version {
-		logger.Infoln(VERSION)
+		logger.Println(VERSION)
 		os.Exit(0)
 	}
 
