@@ -80,5 +80,3 @@ class TestAssignIP(TestBase):
                 host.create_workload("workload4", ip="1.2.3.4", network=network1)
             except Exception, e:
                 self.assertIn("It does not belong to any of this network's subnets.", str(e))
-
-
