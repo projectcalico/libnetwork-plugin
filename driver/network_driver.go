@@ -68,6 +68,16 @@ func (d NetworkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) 
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	logutils.JSONMessage(d.logger, "CreateNetwork", request)
 
+	genericOpts, ok := request.Options["com.docker.network.generic"]
+	if ok {
+		opts, ok := genericOpts.(map[string]interface{})
+		if ok && len(opts) != 0 {
+			err := errors.New("Arbitrary options are not supported")
+			d.logger.Println(err)
+			return err
+		}
+	}
+
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
 		// so we can't check for calico IPAM using our know address space.
