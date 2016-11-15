@@ -115,7 +115,8 @@ run-etcd:
 	@-docker rm -f calico-etcd calico-etcd-ssl
 	docker run --detach \
 	--net=host \
-	--name calico-etcd quay.io/coreos/etcd:v2.0.11 \
+	--name calico-etcd quay.io/coreos/etcd \
+	etcd \
 	--advertise-client-urls "http://$(LOCAL_IP_ENV):2379,http://127.0.0.1:2379" \
 	--listen-client-urls "http://0.0.0.0:2379"
 
