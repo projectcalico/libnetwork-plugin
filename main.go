@@ -14,10 +14,11 @@ import (
 	"flag"
 
 	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
+	"fmt"
 )
 
 const (
-	ipamPluginName    = "calico-ipam"
+	ipamPluginName = "calico-ipam"
 	networkPluginName = "calico"
 )
 
@@ -29,6 +30,10 @@ var (
 )
 
 func init() {
+	logger = logrus.New()
+}
+
+func initializeClient() {
 	var err error
 
 	if config, err = datastoreClient.LoadClientConfig(""); err != nil {
@@ -37,8 +42,6 @@ func init() {
 	if client, err = datastoreClient.New(*config); err != nil {
 		panic(err)
 	}
-
-	logger = logrus.New()
 
 	if os.Getenv("CALICO_DEBUG") != "" {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -59,9 +62,11 @@ func main() {
 		logger.Fatalln(err)
 	}
 	if *version {
-		logger.Println(VERSION)
+		fmt.Println(VERSION)
 		os.Exit(0)
 	}
+
+	initializeClient()
 
 	errChannel := make(chan error)
 	networkHandler := network.NewHandler(driver.NewNetworkDriver(client, logger))
