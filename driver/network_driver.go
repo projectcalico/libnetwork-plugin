@@ -2,9 +2,9 @@ package driver
 
 import (
 	"context"
-	"log"
 	"net"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
 	libcalicoErrors "github.com/projectcalico/libcalico-go/lib/errors"
 
@@ -25,7 +25,7 @@ import (
 // Must be used with Calico IPAM and supports IPv4 only.
 type NetworkDriver struct {
 	client *datastoreClient.Client
-	logger *log.Logger
+	logger *logrus.Logger
 
 	containerName  string
 	orchestratorID string
@@ -39,7 +39,7 @@ type NetworkDriver struct {
 	DummyIPV4Nexthop string
 }
 
-func NewNetworkDriver(client *datastoreClient.Client, logger *log.Logger) network.Driver {
+func NewNetworkDriver(client *datastoreClient.Client, logger *logrus.Logger) network.Driver {
 	return NetworkDriver{
 		client: client,
 		logger: logger,
@@ -61,12 +61,12 @@ func NewNetworkDriver(client *datastoreClient.Client, logger *log.Logger) networ
 
 func (d NetworkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) {
 	resp := network.CapabilitiesResponse{Scope: "global"}
-	logutils.JSONMessage(d.logger, "GetCapabilities response JSON=%v", resp)
+	logutils.JSONMessage(d.logger, "GetCapabilities response", resp)
 	return &resp, nil
 }
 
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
-	logutils.JSONMessage(d.logger, "CreateNetwork JSON=%s", request)
+	logutils.JSONMessage(d.logger, "CreateNetwork", request)
 
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
@@ -75,43 +75,46 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 		// So the only safe thing is to check for our special gateway value
 		if ipData.Gateway != "0.0.0.0/0" {
 			err := errors.New("Non-Calico IPAM driver is used")
-			d.logger.Println(err)
+			d.logger.Errorln(err)
 			return err
 		}
 	}
 
-	logutils.JSONMessage(d.logger, "CreateNetwork response JSON=%v", map[string]string{})
+	logutils.JSONMessage(d.logger, "CreateNetwork response", map[string]string{})
 	return nil
 }
 
 func (d NetworkDriver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
-	logutils.JSONMessage(d.logger, "DeleteNetwork JSON=%v", request)
+	logutils.JSONMessage(d.logger, "DeleteNetwork", request)
 	return nil
 }
 
 func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
-	logutils.JSONMessage(d.logger, "CreateEndpoint JSON=%v", request)
+	logutils.JSONMessage(d.logger, "CreateEndpoint", request)
 
 	hostname, err := osutils.GetHostname()
 	if err != nil {
 		err = errors.Wrap(err, "Hostname fetching error")
+		d.logger.Errorln(err)
 		return nil, err
 	}
 
-	d.logger.Printf("Creating endpoint %v\n", request.EndpointID)
+	d.logger.Debugf("Creating endpoint %v\n", request.EndpointID)
 	if request.Interface.Address == "" {
-		return nil, errors.New("No address assigned for endpoint")
+		err := errors.New("No address assigned for endpoint")
+		d.logger.Errorln(err)
+		return nil, err
 	}
 
 	var addresses []caliconet.IPNet
 	if request.Interface.Address != "" {
 		// Parse the address this function was passed. Ignore the subnet - Calico always uses /32 (for IPv4)
 		ip4, _, err := net.ParseCIDR(request.Interface.Address)
-		d.logger.Printf("Parsed IP %v from (%v) \n", ip4, request.Interface.Address)
+		d.logger.Debugf("Parsed IP %v from (%v) \n", ip4, request.Interface.Address)
 
 		if err != nil {
 			err = errors.Wrapf(err, "Parsing %v as CIDR failed", request.Interface.Address)
-			d.logger.Println(err)
+			d.logger.Errorln(err)
 			return nil, err
 		}
 
@@ -132,11 +135,13 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	dockerCli, err := dockerClient.NewEnvClient()
 	if err != nil {
 		err = errors.Wrap(err, "Error while attempting to instantiate docker client from env")
+		d.logger.Errorln(err)
 		return nil, err
 	}
 	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID)
 	if err != nil {
 		err = errors.Wrapf(err, "Network %v inspection error", request.NetworkID)
+		d.logger.Errorln(err)
 		return nil, err
 	}
 
@@ -149,14 +154,14 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	profile := &api.Profile{
 		Metadata: api.ProfileMetadata{Name: networkData.Name},
 		Spec: api.ProfileSpec{
-			Tags: []string{networkData.Name},
-			EgressRules: []api.Rule{{Action: "allow"}},
+			Tags:         []string{networkData.Name},
+			EgressRules:  []api.Rule{{Action: "allow"}},
 			IngressRules: []api.Rule{{Action: "allow", Source: api.EntityRule{Tag: networkData.Name}}},
 		},
 	}
 	if _, err := d.client.Profiles().Create(profile); err != nil {
 		if _, ok := err.(libcalicoErrors.ErrorResourceAlreadyExists); !ok {
-			log.Println(err)
+			d.logger.Errorln(err)
 			return nil, err
 		}
 	}
@@ -165,11 +170,11 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	_, err = d.client.WorkloadEndpoints().Create(endpoint)
 	if err != nil {
 		err = errors.Wrapf(err, "Workload endpoints creation error, data: %+v", endpoint)
-		d.logger.Println(err)
+		d.logger.Errorln(err)
 		return nil, err
 	}
 
-	d.logger.Printf("Workload created, data: %+v\n", endpoint)
+	d.logger.Debugf("Workload created, data: %+v\n", endpoint)
 
 	response := &network.CreateEndpointResponse{
 		Interface: &network.EndpointInterface{
@@ -177,18 +182,19 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		},
 	}
 
-	logutils.JSONMessage(d.logger, "CreateEndpoint response JSON=%v", response)
+	logutils.JSONMessage(d.logger, "CreateEndpoint response", response)
 
 	return response, nil
 }
 
 func (d NetworkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
-	logutils.JSONMessage(d.logger, "DeleteEndpoint JSON=%v", request)
-	d.logger.Printf("Removing endpoint %v\n", request.EndpointID)
+	logutils.JSONMessage(d.logger, "DeleteEndpoint", request)
+	d.logger.Debugf("Removing endpoint %v\n", request.EndpointID)
 
 	hostname, err := osutils.GetHostname()
 	if err != nil {
 		err = errors.Wrap(err, "Hostname fetching error")
+		d.logger.Errorln(err)
 		return err
 	}
 
@@ -199,7 +205,7 @@ func (d NetworkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) er
 			Orchestrator: d.orchestratorID,
 			Workload:     d.containerName}); err != nil {
 		err = errors.Wrapf(err, "Endpoint %v removal error", request.EndpointID)
-		log.Println(err)
+		d.logger.Errorln(err)
 		return err
 	}
 
@@ -209,12 +215,12 @@ func (d NetworkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) er
 }
 
 func (d NetworkDriver) EndpointInfo(request *network.InfoRequest) (*network.InfoResponse, error) {
-	logutils.JSONMessage(d.logger, "EndpointInfo JSON=%v", request)
+	logutils.JSONMessage(d.logger, "EndpointInfo", request)
 	return nil, nil
 }
 
 func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse, error) {
-	logutils.JSONMessage(d.logger, "Join JSON=%v", request)
+	logutils.JSONMessage(d.logger, "Join", request)
 
 	// 1) Set up a veth pair
 	// 	The one end will stay in the host network namespace - named caliXXXXX
@@ -228,16 +234,16 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		err = errors.Wrapf(
 			err, "Veth creation error, hostInterfaceName=%v, tempInterfaceName=%v",
 			hostInterfaceName, tempInterfaceName)
-		d.logger.Println(err)
+		d.logger.Errorln(err)
 		return nil, err
 	}
 
 	// libnetwork doesn't set the MAC address properly, so set it here.
 	if err = netns.SetVethMac(tempInterfaceName, d.fixedMac); err != nil {
-		d.logger.Printf("Veth mac setting for %v failed, removing veth for %v\n", tempInterfaceName, hostInterfaceName)
+		d.logger.Debugf("Veth mac setting for %v failed, removing veth for %v\n", tempInterfaceName, hostInterfaceName)
 		err = netns.RemoveVeth(hostInterfaceName)
 		err = errors.Wrapf(err, "Veth removing for %v error", hostInterfaceName)
-		d.logger.Println(err)
+		d.logger.Errorln(err)
 		return nil, err
 	}
 
@@ -251,7 +257,7 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 	// One of the network gateway addresses indicate that we are using
 	// Calico IPAM driver.  In this case we setup routes using the gateways
 	// configured on the endpoint (which will be our host IPs).
-	d.logger.Println("Using Calico IPAM driver, configure gateway and static routes to the host")
+	d.logger.Debugln("Using Calico IPAM driver, configure gateway and static routes to the host")
 
 	resp.Gateway = d.DummyIPV4Nexthop
 	resp.StaticRoutes = append(resp.StaticRoutes, &network.StaticRoute{
@@ -260,27 +266,27 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		NextHop:     "",
 	})
 
-	logutils.JSONMessage(d.logger, "Join Response JSON=%v", resp)
+	logutils.JSONMessage(d.logger, "Join response", resp)
 
 	return resp, nil
 }
 
 func (d NetworkDriver) Leave(request *network.LeaveRequest) error {
-	logutils.JSONMessage(d.logger, "Leave response JSON=%v", request)
+	logutils.JSONMessage(d.logger, "Leave response", request)
 	caliName := "cali" + request.EndpointID[:mathutils.MinInt(11, len(request.EndpointID))]
 	err := netns.RemoveVeth(caliName)
 	return err
 }
 
 func (d NetworkDriver) DiscoverNew(request *network.DiscoveryNotification) error {
-	logutils.JSONMessage(d.logger, "DiscoverNew JSON=%v", request)
-	d.logger.Println("DiscoverNew response JSON={}")
+	logutils.JSONMessage(d.logger, "DiscoverNew", request)
+	d.logger.Debugln("DiscoverNew response JSON={}")
 	return nil
 }
 
 func (d NetworkDriver) DiscoverDelete(request *network.DiscoveryNotification) error {
-	logutils.JSONMessage(d.logger, "DiscoverNew JSON=%v", request)
-	d.logger.Println("DiscoverDelete response JSON={}")
+	logutils.JSONMessage(d.logger, "DiscoverNew", request)
+	d.logger.Debugln("DiscoverDelete response JSON={}")
 	return nil
 }
 

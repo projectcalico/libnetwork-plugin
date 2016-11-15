@@ -2,14 +2,15 @@ package log
 
 import (
 	"encoding/json"
-	"log"
+
+	"github.com/Sirupsen/logrus"
 )
 
-func JSONMessage(logger *log.Logger, formattedMessage string, data interface{}) {
+func JSONMessage(logger *logrus.Logger, formattedMessage string, data interface{}) {
 	requestJSON, err := json.Marshal(data)
 	if err != nil {
 		logger.Fatal(err)
 		return
 	}
-	logger.Printf(formattedMessage, string(requestJSON))
+	logger.WithField("JSON", string(requestJSON)).Info(formattedMessage)
 }
