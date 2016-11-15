@@ -6,11 +6,12 @@ ST_TO_RUN?=tests/st
 # Can exclude the slower tests with "-a '!slow'"
 ST_OPTIONS?=
 HOST_CHECKOUT_DIR?=$(shell pwd)
+CONTAINER_NAME?=calico/libnetwork-plugin
 default: all
 all: test
 test: st
 
-calico/libnetwork-plugin: libnetwork-plugin.created
+$(CONTAINER_NAME): libnetwork-plugin.created
 
 # Use this to populate the vendor directory after checking out the repository.
 # To update upstream dependencies, delete the glide.lock file first.
@@ -43,7 +44,7 @@ build: $(SRC_FILES) vendor
 	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
-	docker build -t calico/libnetwork-plugin .
+	docker build -t $(CONTAINER_NAME) .
 	touch libnetwork-plugin.created
 
 dist/calicoctl:
@@ -60,7 +61,7 @@ calico-node.tar:
 	docker save calico/node:v0.23.0 -o calico-node.tar
 
 calico-node-libnetwork.tar: libnetwork-plugin.created
-	docker save calico/libnetwork-plugin:latest -o calico-node-libnetwork.tar
+	docker save $(CONTAINER_NAME):latest -o calico-node-libnetwork.tar
 
 # Install or update the tools used by the build
 .PHONY: update-tools
@@ -107,7 +108,7 @@ st:  dist/calicoctl busybox.tar calico-node.tar calico-node-libnetwork.tar run-e
 	           sh -c 'cp -ra tests/st/libnetwork/ /tests/st && cd / && nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer $(ST_OPTIONS)'
 
 run-plugin: libnetwork-plugin.created
-	docker run --rm --net=host --privileged -e CALICO_ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 -v /run/docker/plugins:/run/docker/plugins -v /var/run/docker.sock:/var/run/docker.sock -v /lib/modules:/lib/modules --name calico-node-libnetwork calico/libnetwork-plugin /libnetwork-plugin
+	docker run --rm --net=host --privileged -e CALICO_ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 -v /run/docker/plugins:/run/docker/plugins -v /var/run/docker.sock:/var/run/docker.sock -v /lib/modules:/lib/modules --name calico-node-libnetwork $(CONTAINER_NAME) /libnetwork-plugin
 
 
 run-etcd:
@@ -119,13 +120,22 @@ run-etcd:
 	--listen-client-urls "http://0.0.0.0:2379"
 
 semaphore:
-	docker version
-
 	# Ensure Semaphore has loaded the required modules
 	modprobe -a ip6_tables xt_set
 
 	# Run the STs
 	make st
+
+	set -e; \
+	if [ -z $$PULL_REQUEST_NUMBER ]; then \
+		docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$BRANCH_NAME && docker push $(CONTAINER_NAME):$$BRANCH_NAME; \
+		docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$BRANCH_NAME && docker push quay.io/$(CONTAINER_NAME):$$BRANCH_NAME; \
+		if [ "$$BRANCH_NAME" = "master" ]; then \
+			export VERSION=`git describe --tags --dirty`; \
+			docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$VERSION && docker push $(CONTAINER_NAME):$$VERSION; \
+			docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$VERSION && docker push quay.io/$(CONTAINER_NAME):$$VERSION; \
+		fi; \
+	fi
 
 release: clean
 ifndef VERSION
