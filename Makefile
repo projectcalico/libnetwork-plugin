@@ -6,7 +6,6 @@ ST_TO_RUN?=tests/st
 # Can exclude the slower tests with "-a '!slow'"
 ST_OPTIONS?=
 HOST_CHECKOUT_DIR?=$(shell pwd)
-PLUGIN_VERSION?=$(shell git describe --tags --dirty)
 default: all
 all: test
 test: st
@@ -17,7 +16,9 @@ calico/libnetwork-plugin: libnetwork-plugin.created
 # To update upstream dependencies, delete the glide.lock file first.
 vendor: glide.yaml
 	# To build without Docker just run "glide install -strip-vendor"
-	docker run --rm -v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
+	docker run --rm \
+	  -v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
+	  -v ${HOME}/.glide:/root/.glide:rw \
       --entrypoint /bin/sh dockerepo/glide -e -c ' \
 		cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 		glide install -strip-vendor && \
@@ -39,7 +40,7 @@ dist/libnetwork-plugin: vendor
 
 
 build: $(SRC_FILES) vendor
-	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(PLUGIN_VERSION) -s -w" main.go
+	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
 	docker build -t calico/libnetwork-plugin .
@@ -126,17 +127,25 @@ semaphore:
 	# Run the STs
 	make st
 
-release: libnetwork-plugin.created
-	dist/libnetwork-plugin -v
-	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(PLUGIN_VERSION)
-	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin:$(PLUGIN_VERSION)
+release: clean
+ifndef VERSION
+	$(error VERSION is undefined - run using make release VERSION=vX.Y.Z)
+endif
+	git tag $(VERSION)
+	$(MAKE) libnetwork-plugin.created
+	# Check that the version output appears on a line of its own (the -x option to grep).
+# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
+	@echo "Checking if the tag made it into the binary"
+	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || echo "Reported version:" `dist/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1
+	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(VERSION)
+	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin:$(VERSION)
 
-	docker push calico/libnetwork-plugin:$(PLUGIN_VERSION)
-	docker push quay.io/calico/libnetwork-plugin:$(PLUGIN_VERSION)
+	@echo "Now push the tag and images. Then create a release on Github and attach the dist/libnetwork-plugin binary"
+	@echo "git push origin $(VERSION)"
+	@echo "docker push calico/libnetwork-plugin:$(VERSION)"
+	@echo "docker push quay.io/calico/libnetwork-plugin:$(VERSION)"
+	@echo "docker push calico/libnetwork-plugin:latest"
+	@echo "docker push quay.io/calico/libnetwork-plugin:latest"
 
 clean:
-	-rm -f *.created
-	-rm -rf dist
-	-rm -f *.tar
-	-rm -rf vendor
-	-docker run -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker --rm martin/docker-cleanup-volumes
+	rm -rf *.created dist *.tar vendor
