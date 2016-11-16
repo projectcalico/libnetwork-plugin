@@ -1,5 +1,7 @@
 package driver
 
+import "os"
+
 const (
 	// Calico IPAM module does not allow selection of pools from which to allocate
 	// IP addresses.  The pool ID, which has to be supplied in the libnetwork IPAM
@@ -9,6 +11,13 @@ const (
 	PoolIDV6 = "CalicoPoolIPv6"
 
 	CalicoGlobalAddressSpace = "CalicoGlobalAddressSpace"
-
-	IFPrefix = "cali"
 )
+
+var IFPrefix = "cali"
+
+func init() {
+	if os.Getenv("CALICO_LIBNETWORK_IFPREFIX") != "" {
+		IFPrefix = os.Getenv("CALICO_LIBNETWORK_IFPREFIX")
+	}
+}
+
