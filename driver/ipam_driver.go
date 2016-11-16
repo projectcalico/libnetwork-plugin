@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
 
 	"github.com/docker/go-plugins-helpers/ipam"
@@ -17,16 +17,14 @@ import (
 
 type IpamDriver struct {
 	client *datastoreClient.Client
-	logger *logrus.Logger
 
 	poolIDV4 string
 	poolIDV6 string
 }
 
-func NewIpamDriver(client *datastoreClient.Client, logger *logrus.Logger) ipam.Ipam {
+func NewIpamDriver(client *datastoreClient.Client) ipam.Ipam {
 	return IpamDriver{
 		client: client,
-		logger: logger,
 
 		poolIDV4: PoolIDV4,
 		poolIDV6: PoolIDV6,
@@ -35,7 +33,7 @@ func NewIpamDriver(client *datastoreClient.Client, logger *logrus.Logger) ipam.I
 
 func (i IpamDriver) GetCapabilities() (*ipam.CapabilitiesResponse, error) {
 	resp := ipam.CapabilitiesResponse{}
-	logutils.JSONMessage(i.logger, "GetCapabilities response", resp)
+	logutils.JSONMessage("GetCapabilities response", resp)
 	return &resp, nil
 }
 
@@ -44,12 +42,12 @@ func (i IpamDriver) GetDefaultAddressSpaces() (*ipam.AddressSpacesResponse, erro
 		LocalDefaultAddressSpace:  "CalicoLocalAddressSpace",
 		GlobalDefaultAddressSpace: CalicoGlobalAddressSpace,
 	}
-	logutils.JSONMessage(i.logger, "GetDefaultAddressSpace response", resp)
+	logutils.JSONMessage("GetDefaultAddressSpace response", resp)
 	return resp, nil
 }
 
 func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.RequestPoolResponse, error) {
-	logutils.JSONMessage(i.logger, "RequestPool", request)
+	logutils.JSONMessage("RequestPool", request)
 
 	// Calico IPAM does not allow you to request a SubPool.
 	if request.SubPool != "" {
@@ -59,13 +57,13 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 				"should be configured first and IP assignment is " +
 				"from those pre-configured pools.",
 		)
-		i.logger.Errorln(err)
+		log.Errorln(err)
 		return nil, err
 	}
 
 	if request.V6 {
 		err := errors.New("IPv6 isn't supported")
-		i.logger.Errorln(err)
+		log.Errorln(err)
 		return nil, err
 	}
 
@@ -80,7 +78,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 		_, ipNet, err := caliconet.ParseCIDR(request.Pool)
 		if err != nil {
 			err := errors.New("Invalid CIDR")
-			i.logger.Errorln(err)
+			log.Errorln(err)
 			return nil, err
 		}
 
@@ -89,7 +87,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 			err := errors.New("The requested subnet must match the CIDR of a " +
 				"configured Calico IP Pool.",
 			)
-			i.logger.Errorln(err)
+			log.Errorln(err)
 			return nil, err
 		}
 		pool = request.Pool
@@ -106,22 +104,22 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 		Data:   map[string]string{"com.docker.network.gateway": "0.0.0.0/0"},
 	}
 
-	logutils.JSONMessage(i.logger, "RequestPool response", resp)
+	logutils.JSONMessage("RequestPool response", resp)
 
 	return resp, nil
 }
 
 func (i IpamDriver) ReleasePool(request *ipam.ReleasePoolRequest) error {
-	logutils.JSONMessage(i.logger, "ReleasePool", request)
+	logutils.JSONMessage("ReleasePool", request)
 	return nil
 }
 
 func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.RequestAddressResponse, error) {
-	logutils.JSONMessage(i.logger, "RequestAddress", request)
+	logutils.JSONMessage("RequestAddress", request)
 
 	hostname, err := osutils.GetHostname()
 	if err != nil {
-		i.logger.Errorln(err)
+		log.Errorln(err)
 		return nil, err
 	}
 
@@ -129,7 +127,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 
 	if request.Address == "" {
 		// No address requested, so auto assign from our pools.
-		i.logger.Println("Auto assigning IP from Calico pools")
+		log.Println("Auto assigning IP from Calico pools")
 
 		// If the poolID isn't the fixed one then find the pool to assign from.
 		// poolV4 defaults to nil to assign from across all pools.
@@ -140,7 +138,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 
 			if err != nil {
 				err = errors.Wrapf(err, "Invalid CIDR - %v", request.PoolID)
-				i.logger.Errorln(err)
+				log.Errorln(err)
 				return nil, err
 			}
 			pool, err := poolsClient.Get(api.IPPoolMetadata{CIDR: *ipNet})
@@ -148,11 +146,11 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 				err := errors.New("The network references a Calico pool which " +
 					"has been deleted. Please re-instate the " +
 					"Calico pool before using the network.")
-				i.logger.Errorln(err)
+				log.Errorln(err)
 				return nil, err
 			}
 			poolV4 = &caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}
-			i.logger.Debugln("Using specific pool ", poolV4)
+			log.Debugln("Using specific pool ", poolV4)
 		}
 
 		// Auto assign an IP address.
@@ -169,7 +167,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 
 		if err != nil {
 			err = errors.Wrapf(err, "IP assignment error")
-			i.logger.Errorln(err)
+			log.Errorln(err)
 			return nil, err
 		}
 		IPs = append(IPsV4, IPsV6...)
@@ -177,7 +175,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// Docker allows the users to specify any address.
 		// We'll return an error if the address isn't in a Calico pool, but we don't care which pool it's in
 		// (i.e. it doesn't need to match the subnet from the docker network).
-		i.logger.Debugln("Reserving a specific address in Calico pools")
+		log.Debugln("Reserving a specific address in Calico pools")
 		ip := net.ParseIP(request.Address)
 		ipArgs := datastoreClient.AssignIPArgs{
 			IP:       caliconet.IP{IP: ip},
@@ -186,7 +184,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		err := i.client.IPAM().AssignIP(ipArgs)
 		if err != nil {
 			err = errors.Wrapf(err, "IP assignment error, data: %+v", ipArgs)
-			i.logger.Errorln(err)
+			log.Errorln(err)
 			return nil, err
 		}
 		IPs = []caliconet.IP{{IP: ip}}
@@ -196,7 +194,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 	if len(IPs) != 1 {
 		err := errors.New(fmt.Sprintf("Unexpected number of assigned IP addresses. "+
 			"A single address should be assigned. Got %v", IPs))
-		i.logger.Errorln(err)
+		log.Errorln(err)
 		return nil, err
 	}
 
@@ -205,13 +203,13 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		Address: fmt.Sprintf("%v/%v", IPs[0], "32"),
 	}
 
-	logutils.JSONMessage(i.logger, "RequestAddress response", resp)
+	logutils.JSONMessage("RequestAddress response", resp)
 
 	return resp, nil
 }
 
 func (i IpamDriver) ReleaseAddress(request *ipam.ReleaseAddressRequest) error {
-	logutils.JSONMessage(i.logger, "ReleaseAddress", request)
+	logutils.JSONMessage("ReleaseAddress", request)
 
 	ip := caliconet.IP{IP: net.ParseIP(request.Address)}
 
@@ -220,7 +218,7 @@ func (i IpamDriver) ReleaseAddress(request *ipam.ReleaseAddressRequest) error {
 	_, err := i.client.IPAM().ReleaseIPs([]caliconet.IP{ip})
 	if err != nil {
 		err = errors.Wrapf(err, "IP releasing error, ip: %v", ip)
-		i.logger.Errorln(err)
+		log.Errorln(err)
 		return err
 	}
 
