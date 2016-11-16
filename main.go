@@ -1,11 +1,9 @@
 package main
 
 import (
-	"log"
-
 	"os"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/docker/go-plugins-helpers/ipam"
 	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/api"
@@ -14,21 +12,25 @@ import (
 	"flag"
 
 	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
+	"fmt"
 )
 
 const (
-	ipamPluginName    = "calico-ipam"
+	ipamPluginName = "calico-ipam"
 	networkPluginName = "calico"
 )
 
 var (
 	config *api.ClientConfig
 	client *datastoreClient.Client
-
-	logger *logrus.Logger
 )
 
 func init() {
+  // Output to stderr instead of stdout, could also be a file.
+  log.SetOutput(os.Stderr)
+}
+
+func initializeClient() {
 	var err error
 
 	if config, err = datastoreClient.LoadClientConfig(""); err != nil {
@@ -38,10 +40,9 @@ func init() {
 		panic(err)
 	}
 
-	logger = logrus.New()
-
 	if os.Getenv("CALICO_DEBUG") != "" {
-		logrus.SetLevel(logrus.DebugLevel)
+		log.SetLevel(log.DebugLevel)
+		log.Debugln("Debug logging enabled")
 	}
 }
 
@@ -56,28 +57,30 @@ func main() {
 	version := flagSet.Bool("v", false, "Display version")
 	err := flagSet.Parse(os.Args[1:])
 	if err != nil {
-		logger.Fatalln(err)
+		log.Fatalln(err)
 	}
 	if *version {
-		logger.Println(VERSION)
+		fmt.Println(VERSION)
 		os.Exit(0)
 	}
 
+	initializeClient()
+
 	errChannel := make(chan error)
-	networkHandler := network.NewHandler(driver.NewNetworkDriver(client, logger))
-	ipamHandler := ipam.NewHandler(driver.NewIpamDriver(client, logger))
+	networkHandler := network.NewHandler(driver.NewNetworkDriver(client))
+	ipamHandler := ipam.NewHandler(driver.NewIpamDriver(client))
 
 	go func(c chan error) {
-		logger.Infoln("calico-net has started.")
+		log.Infoln("calico-net has started.")
 		err := networkHandler.ServeUnix("root", networkPluginName)
-		logger.Infoln("calico-net has stopped working.")
+		log.Infoln("calico-net has stopped working.")
 		c <- err
 	}(errChannel)
 
 	go func(c chan error) {
-		logger.Infoln("calico-ipam has started.")
+		log.Infoln("calico-ipam has started.")
 		err := ipamHandler.ServeUnix("root", ipamPluginName)
-		logger.Infoln("calico-ipam has stopped working.")
+		log.Infoln("calico-ipam has stopped working.")
 		c <- err
 	}(errChannel)
 

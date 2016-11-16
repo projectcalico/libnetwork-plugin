@@ -3,10 +3,10 @@ package log
 import (
 	"encoding/json"
 
-	"github.com/Sirupsen/logrus"
+	logger "github.com/Sirupsen/logrus"
 )
 
-func JSONMessage(logger *logrus.Logger, formattedMessage string, data interface{}) {
+func JSONMessage(formattedMessage string, data interface{}) {
 	requestJSON, err := json.Marshal(data)
 	if err != nil {
 		logger.Fatal(err)
