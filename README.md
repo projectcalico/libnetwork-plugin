@@ -30,6 +30,11 @@ driver:
    container into another network).
 - IPv6 is not currently supported
 
+## Configuring
+
+To change the prefix used for the interface in containers that Docker runs, set the `CALICO_LIBNETWORK_IFPREFIX` environment variable.
+* The default value is "cali"
+
 ## Troubleshooting
 
 ### Logging
