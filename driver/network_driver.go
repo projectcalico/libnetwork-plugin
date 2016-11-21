@@ -24,7 +24,7 @@ import (
 // NetworkDriver is the Calico network driver representation.
 // Must be used with Calico IPAM and supports IPv4 only.
 type NetworkDriver struct {
-	client *datastoreClient.Client
+	client         *datastoreClient.Client
 	containerName  string
 	orchestratorID string
 	fixedMac       string
@@ -159,9 +159,11 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	// We always attempt to create the profile and rely on the datastore to reject
 	// the request if the profile already exists.
 	profile := &api.Profile{
-		Metadata: api.ProfileMetadata{Name: networkData.Name},
+		Metadata: api.ProfileMetadata{
+			Name: networkData.Name,
+			Tags: []string{networkData.Name},
+		},
 		Spec: api.ProfileSpec{
-			Tags:         []string{networkData.Name},
 			EgressRules:  []api.Rule{{Action: "allow"}},
 			IngressRules: []api.Rule{{Action: "allow", Source: api.EntityRule{Tag: networkData.Name}}},
 		},

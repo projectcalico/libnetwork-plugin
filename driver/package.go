@@ -20,4 +20,3 @@ func init() {
 		IFPrefix = os.Getenv("CALICO_LIBNETWORK_IFPREFIX")
 	}
 }
-
