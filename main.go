@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	config *api.ClientConfig
+	config *api.CalicoAPIConfig
 	client *datastoreClient.Client
 )
 
