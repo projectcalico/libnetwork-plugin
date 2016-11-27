@@ -54,14 +54,14 @@ dist/calicoctl:
 
 busybox.tar:
 	docker pull busybox:latest
-	docker save busybox:latest -o busybox.tar
+	docker save -o busybox.tar busybox:latest
 
 calico-node.tar:
 	docker pull calico/node:v0.23.0
-	docker save calico/node:v0.23.0 -o calico-node.tar
+	docker save -o calico-node.tar calico/node:v0.23.0
 
 calico-node-libnetwork.tar: libnetwork-plugin.created
-	docker save $(CONTAINER_NAME):latest -o calico-node-libnetwork.tar
+	docker save -o calico-node-libnetwork.tar $(CONTAINER_NAME):latest
 
 # Install or update the tools used by the build
 .PHONY: update-tools
