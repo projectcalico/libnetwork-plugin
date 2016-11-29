@@ -1,5 +1,5 @@
-hash: 20036ab064bdc53939eacf8abba140295689caa725b111814f963072186388a2
-updated: 2016-11-30T13:39:52.231294385-08:00
+hash: 905c9c319d23f5d1ba29c85e923752a5d0d30b68895c3c60d4eefd5602c675cf
+updated: 2016-12-01T16:51:13.012818805-08:00
 imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
@@ -61,7 +61,7 @@ imports:
   - types/time
   - types/versions
 - name: github.com/docker/go-connections
-  version: 4ccf312bf1d35e5dbda654e57a9be4c3f3cd0366
+  version: f512407a188ecb16f31a33dbc9c4e4814afc1b03
   subpackages:
   - nat
   - sockets
@@ -80,7 +80,7 @@ imports:
   - log
   - swagger
 - name: github.com/ghodss/yaml
-  version: a54de18a07046d8c4b26e9327698a2ebb9285b36
+  version: bea76d6a4713e18b7f5321a2b020738552def3ea
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -117,9 +117,9 @@ imports:
   - jlexer
   - jwriter
 - name: github.com/Microsoft/go-winio
-  version: 24a3e3d3fc7451805e09d11e11e95d9a0a4f205e
+  version: ce2922f643c8fd76b46cadc7f404a06282678b34
 - name: github.com/opencontainers/runc
-  version: 8893fa693bf9bf29e5a156369bc51b887df43924
+  version: 5f24c9a61ad67f4d3c7a2847dc9bd4a1872795c6
   subpackages:
   - libcontainer/user
 - name: github.com/pborman/uuid
@@ -150,7 +150,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/Sirupsen/logrus
-  version: 42b84f9ec624953ecbf81a94feccb3f5935c5edf
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/pflag
   version: 5644820622454e71517561946e3d94b9f9db6842
 - name: github.com/ugorji/go
@@ -158,7 +158,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/vishvananda/netlink
-  version: a4f22d8ad2327663017dbb309b5e3f8b6f348020
+  version: da7420cab5e209195f5f7387fccd4c7f48758d30
   subpackages:
   - nl
 - name: github.com/vishvananda/netns
@@ -168,12 +168,12 @@ imports:
   subpackages:
   - bcrypt
   - blowfish
-  - ocsp
   - ssh/terminal
 - name: golang.org/x/net
   version: 4876518f9e71663000c348837735820161a42df7
   subpackages:
   - context
+  - context/ctxhttp
   - http2
   - http2/hpack
   - idna
@@ -347,4 +347,58 @@ imports:
   - tools/clientcmd/api/v1
   - tools/metrics
   - transport
-testImports: []
+testImports:
+- name: github.com/docker/docker
+  version: 1f9b3ef9e9c74c2905780ac5347d018646a20022
+  subpackages:
+  - api/types
+  - api/types/blkiodev
+  - api/types/container
+  - api/types/events
+  - api/types/filters
+  - api/types/mount
+  - api/types/network
+  - api/types/reference
+  - api/types/registry
+  - api/types/strslice
+  - api/types/swarm
+  - api/types/time
+  - api/types/versions
+  - api/types/volume
+  - client
+  - pkg/tlsconfig
+- name: github.com/onsi/ginkgo
+  version: 00054c0bb96fc880d4e0be1b90937fad438c5290
+  subpackages:
+  - config
+  - internal/codelocation
+  - internal/containernode
+  - internal/failer
+  - internal/leafnodes
+  - internal/remote
+  - internal/spec
+  - internal/specrunner
+  - internal/suite
+  - internal/testingtproxy
+  - internal/writer
+  - reporters
+  - reporters/stenographer
+  - reporters/stenographer/support/go-colorable
+  - reporters/stenographer/support/go-isatty
+  - types
+- name: github.com/onsi/gomega
+  version: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
+  subpackages:
+  - format
+  - gbytes
+  - gexec
+  - internal/assertion
+  - internal/asyncassertion
+  - internal/oraclematcher
+  - internal/testingtsupport
+  - matchers
+  - matchers/support/goraph/bipartitegraph
+  - matchers/support/goraph/edge
+  - matchers/support/goraph/node
+  - matchers/support/goraph/util
+  - types

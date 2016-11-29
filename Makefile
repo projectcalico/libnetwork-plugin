@@ -2,14 +2,14 @@ SRC_FILES=$(shell find . -type f -name '*.go')
 
 # These variables can be overridden by setting an environment variable.
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
-ST_TO_RUN?=tests/st
-# Can exclude the slower tests with "-a '!slow'"
-ST_OPTIONS?=
+
+# Can choose different docker versions see list here - https://hub.docker.com/_/docker/
+DOCKER_VERSION?=dind
 HOST_CHECKOUT_DIR?=$(shell pwd)
 CONTAINER_NAME?=calico/libnetwork-plugin
+
 default: all
 all: test
-test: st
 
 $(CONTAINER_NAME): libnetwork-plugin.created
 
@@ -39,29 +39,12 @@ dist/libnetwork-plugin: vendor
 		make build && \
 		chown -R $(shell id -u):$(shell id -u) dist'
 
-
 build: $(SRC_FILES) vendor
 	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
 	docker build -t $(CONTAINER_NAME) .
 	touch libnetwork-plugin.created
-
-dist/calicoctl:
-	-mkdir -p dist
-	curl -L https://github.com/projectcalico/calico-containers/releases/download/v0.23.0/calicoctl -o dist/calicoctl
-	chmod +x dist/calicoctl
-
-busybox.tar:
-	docker pull busybox:latest
-	docker save -o busybox.tar busybox:latest
-
-calico-node.tar:
-	docker pull calico/node:v0.23.0
-	docker save -o calico-node.tar calico/node:v0.23.0
-
-calico-node-libnetwork.tar: libnetwork-plugin.created
-	docker save -o calico-node-libnetwork.tar $(CONTAINER_NAME):latest
 
 # Install or update the tools used by the build
 .PHONY: update-tools
@@ -88,29 +71,6 @@ static-checks: vendor
 	-golint utils
 	-golint driver
 
-st:  dist/calicoctl busybox.tar calico-node.tar calico-node-libnetwork.tar run-etcd
-	# Use the host, PID and network namespaces from the host.
-	# Privileged is needed since 'calico node' write to /proc (to enable ip_forwarding)
-	# Map the docker socket in so docker can be used from inside the container
-	# HOST_CHECKOUT_DIR is used for volume mounts on containers started by this one.
-	# All of code under test is mounted into the container.
-	#   - This also provides access to calicoctl and the docker client
-	docker run --uts=host \
-	           --pid=host \
-	           --net=host \
-	           --privileged \
-	           -e HOST_CHECKOUT_DIR=$(HOST_CHECKOUT_DIR) \
-	           -e DEBUG_FAILURES=$(DEBUG_FAILURES) \
-	           --rm -ti \
-	           -v /var/run/docker.sock:/var/run/docker.sock \
-	           -v $(CURDIR):/code \
-						 calico/test:v0.18.0 \
-	           sh -c 'cp -ra tests/st/libnetwork/ /tests/st && cd / && nosetests $(ST_TO_RUN) -sv --nologcapture --with-timer $(ST_OPTIONS)'
-
-run-plugin: libnetwork-plugin.created
-	docker run --rm --net=host --privileged -e CALICO_ETCD_AUTHORITY=$(LOCAL_IP_ENV):2379 -v /run/docker/plugins:/run/docker/plugins -v /var/run/docker.sock:/var/run/docker.sock -v /lib/modules:/lib/modules --name calico-node-libnetwork $(CONTAINER_NAME) /libnetwork-plugin
-
-
 run-etcd:
 	@-docker rm -f calico-etcd calico-etcd-ssl
 	docker run --detach \
@@ -120,15 +80,10 @@ run-etcd:
 	--advertise-client-urls "http://$(LOCAL_IP_ENV):2379,http://127.0.0.1:2379" \
 	--listen-client-urls "http://0.0.0.0:2379"
 
-semaphore:
-	# Ensure Semaphore has loaded the required modules
-	modprobe -a ip6_tables xt_set
-
-	# Run the STs
-	make st
-
+semaphore: test-containerized
 	set -e; \
 	if [ -z $$PULL_REQUEST_NUMBER ]; then \
+		$(MAKE) libnetwork-plugin.created; \
 		docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$BRANCH_NAME && docker push $(CONTAINER_NAME):$$BRANCH_NAME; \
 		docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$BRANCH_NAME && docker push quay.io/$(CONTAINER_NAME):$$BRANCH_NAME; \
 		if [ "$$BRANCH_NAME" = "master" ]; then \
@@ -161,3 +116,26 @@ endif
 
 clean:
 	rm -rf *.created dist *.tar vendor
+
+run-plugin: run-etcd dist/libnetwork-plugin
+	-docker rm -f dind
+	docker run -h test --name dind --privileged -e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 -p 5375:2375 -d -v ${PWD}/dist/libnetwork-plugin:/libnetwork-plugin -ti docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
+	docker exec -tid --privileged dind /libnetwork-plugin
+	# To speak to this docker:
+	# export DOCKER_HOST=localhost:5375
+
+.PHONY: test
+# Run the unit tests.
+test: run-plugin
+	CGO_ENABLED=0 ginkgo 
+
+test-containerized: run-plugin
+# TODO - It would be nicer if this got the docker binary from the dind container
+	docker run --rm --net=host \
+	-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
+	-v /var/run/docker.sock:/var/run/docker.sock \
+	-v `which docker`:/usr/bin/docker	golang:1.7 sh -c '\
+		cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
+		apt-get update && apt-get install -y --no-install-recommends libltdl-dev && go get -v github.com/onsi/ginkgo/ginkgo && \
+		CGO_ENABLED=0 ginkgo -v'
+
