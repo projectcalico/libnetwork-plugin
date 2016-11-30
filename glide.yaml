@@ -11,6 +11,7 @@ import:
 - package: github.com/pkg/errors
   version: ^0.8.0
 - package: github.com/projectcalico/libcalico-go
+  version: v1.0.0-rc2
   subpackages:
   - lib/api
   - lib/client
