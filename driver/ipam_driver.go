@@ -131,7 +131,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 
 		// If the poolID isn't the fixed one then find the pool to assign from.
 		// poolV4 defaults to nil to assign from across all pools.
-		var poolV4 *caliconet.IPNet
+		var poolV4 []caliconet.IPNet
 		if request.PoolID != PoolIDV4 {
 			poolsClient := i.client.IPPools()
 			_, ipNet, err := caliconet.ParseCIDR(request.PoolID)
@@ -149,7 +149,7 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 				log.Errorln(err)
 				return nil, err
 			}
-			poolV4 = &caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}
+			poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
 			log.Debugln("Using specific pool ", poolV4)
 		}
 
@@ -158,10 +158,10 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// Otherwise, it will be set to the Calico pool to assign from.
 		IPsV4, IPsV6, err := i.client.IPAM().AutoAssign(
 			datastoreClient.AutoAssignArgs{
-				Num4:     1,
-				Num6:     0,
-				Hostname: hostname,
-				IPv4Pool: poolV4,
+				Num4:      1,
+				Num6:      0,
+				Hostname:  hostname,
+				IPv4Pools: poolV4,
 			},
 		)
 
