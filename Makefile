@@ -147,7 +147,7 @@ endif
 	# Check that the version output appears on a line of its own (the -x option to grep).
 # Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
 	@echo "Checking if the tag made it into the binary"
-	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || echo "Reported version:" `dist/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1
+	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || (echo "Reported version:" `dist/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1)
 	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(VERSION)
 	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin:$(VERSION)
 
