@@ -150,6 +150,7 @@ endif
 	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || (echo "Reported version:" `dist/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1)
 	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(VERSION)
 	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin:$(VERSION)
+	docker tag calico/libnetwork-plugin quay.io/calico/libnetwork-plugin
 
 	@echo "Now push the tag and images. Then create a release on Github and attach the dist/libnetwork-plugin binary"
 	@echo "git push origin $(VERSION)"
