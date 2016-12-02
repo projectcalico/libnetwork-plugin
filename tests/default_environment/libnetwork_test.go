@@ -262,7 +262,29 @@ var _ = Describe("Libnetwork Tests", func() {
 			DockerString(fmt.Sprintf("docker network rm %s", name_subnet))
 		})
 
+		It("creates a container with labels, but do not expect those in endpoint", func() {
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --net %s -tid --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s busybox", name, name))
+
+			// Gather information for assertions
+			docker_endpoint := GetDockerEndpoint(name, name)
+			ip := docker_endpoint.IPAddress
+			mac := docker_endpoint.MacAddress
+			endpoint_id := docker_endpoint.EndpointID
+			interface_name := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
+
+			// Check that the endpoint is created in etcd
+			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
+			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
+				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				interface_name, mac, name, ip)))
+
+			// Delete container
+			DockerString(fmt.Sprintf("docker rm -f %s", name))
+		})
+
 	})
+
 	//docker stop/rm - stop and rm are the same as far as the plugin is concerned
 	// TODO - check that the endpoint is removed from etcd and that the  veth is removed
 })
