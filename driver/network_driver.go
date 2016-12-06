@@ -77,7 +77,7 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
-		// so we can't check for calico IPAM using our know address space.
+		// so we can't check for calico IPAM using our known address space.
 		// Also the pool might not have a fixed values if --subnet was passed
 		// So the only safe thing is to check for our special gateway value
 		if ipData.Gateway != "0.0.0.0/0" {
