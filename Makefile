@@ -19,8 +19,7 @@ vendor: glide.yaml
 	# To build without Docker just run "glide install -strip-vendor"
 	docker run --rm \
 	  -v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
-	  -v ${HOME}/.glide:/root/.glide:rw \
-      --entrypoint /bin/sh dockerepo/glide -e -c ' \
+          --entrypoint /bin/sh dockerepo/glide -e -c ' \
 		cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 		glide install -strip-vendor && \
 		chown $(shell id -u):$(shell id -u) -R vendor'
