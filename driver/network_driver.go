@@ -144,6 +144,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		log.Errorln(err)
 		return nil, err
 	}
+	defer dockerCli.Close()
 	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID)
 	if err != nil {
 		err = errors.Wrapf(err, "Network %v inspection error", request.NetworkID)
