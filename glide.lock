@@ -1,5 +1,5 @@
-hash: 905c9c319d23f5d1ba29c85e923752a5d0d30b68895c3c60d4eefd5602c675cf
-updated: 2016-12-01T16:51:13.012818805-08:00
+hash: da6ce0138a6f60a9dcea6f4ddfbb3c09d59a467914e473e238cd5ba8e24aa97f
+updated: 2016-12-06T17:24:51.89506273-08:00
 imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
@@ -43,25 +43,27 @@ imports:
   subpackages:
   - digest
   - reference
-- name: github.com/docker/engine-api
-  version: 3d1601b9d2436a70b0dfc045a23f6503d19195df
+- name: github.com/docker/docker
+  version: 4d92237de1b34c8bf99e549db27b83fd087cd765
   subpackages:
+  - api/types
+  - api/types/blkiodev
+  - api/types/container
+  - api/types/events
+  - api/types/filters
+  - api/types/mount
+  - api/types/network
+  - api/types/reference
+  - api/types/registry
+  - api/types/strslice
+  - api/types/swarm
+  - api/types/time
+  - api/types/versions
+  - api/types/volume
   - client
-  - client/transport
-  - client/transport/cancellable
-  - types
-  - types/blkiodev
-  - types/container
-  - types/filters
-  - types/network
-  - types/reference
-  - types/registry
-  - types/strslice
-  - types/swarm
-  - types/time
-  - types/versions
+  - pkg/tlsconfig
 - name: github.com/docker/go-connections
-  version: f512407a188ecb16f31a33dbc9c4e4814afc1b03
+  version: 4ccf312bf1d35e5dbda654e57a9be4c3f3cd0366
   subpackages:
   - nat
   - sockets
@@ -73,14 +75,14 @@ imports:
   - network
   - sdk
 - name: github.com/docker/go-units
-  version: 8a7beacffa3009a9ac66bad506b18ffdd110cf97
+  version: e30f1e79f3cd72542f2026ceec18d3bd67ab859c
 - name: github.com/emicklei/go-restful
   version: 89ef8af493ab468a45a42bb0d89a06fccdd2fb22
   subpackages:
   - log
   - swagger
 - name: github.com/ghodss/yaml
-  version: bea76d6a4713e18b7f5321a2b020738552def3ea
+  version: 04f313413ffd65ce25f2541bfd2b2ceec5c0908c
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -109,7 +111,7 @@ imports:
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/kelseyhightower/envconfig
-  version: 9aca109c9aec4633fced9717c4a09ecab3d33111
+  version: 5c008110b20b657eb7e005b83d0a5f6aa6bb5f4b
 - name: github.com/mailru/easyjson
   version: d5b7844b561a7bc640052f1b935f7b800330d7e0
   subpackages:
@@ -117,17 +119,17 @@ imports:
   - jlexer
   - jwriter
 - name: github.com/Microsoft/go-winio
-  version: ce2922f643c8fd76b46cadc7f404a06282678b34
+  version: 24a3e3d3fc7451805e09d11e11e95d9a0a4f205e
 - name: github.com/opencontainers/runc
-  version: 5f24c9a61ad67f4d3c7a2847dc9bd4a1872795c6
+  version: 47ea5c75ebeb40a317d2cfa95f9c3536c00c1eea
   subpackages:
   - libcontainer/user
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/projectcalico/libcalico-go
-  version: d1901d62e520449b2fffd6281909c470d3adf44e
+  version: d0cb24464ebef818ec073f7b0a61887bc1bcd3c9
   subpackages:
   - lib/api
   - lib/api/unversioned
@@ -136,6 +138,7 @@ imports:
   - lib/backend/compat
   - lib/backend/etcd
   - lib/backend/k8s
+  - lib/backend/k8s/thirdparty
   - lib/backend/model
   - lib/client
   - lib/errors
@@ -150,7 +153,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/Sirupsen/logrus
-  version: d26492970760ca5d33129d2d799e34be5c4782eb
+  version: 881bee4e20a5d11a6a88a5667c6f292072ac1963
 - name: github.com/spf13/pflag
   version: 5644820622454e71517561946e3d94b9f9db6842
 - name: github.com/ugorji/go
@@ -158,7 +161,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/vishvananda/netlink
-  version: da7420cab5e209195f5f7387fccd4c7f48758d30
+  version: 266f02d3a80fb75c33302a2c91e7632ec33c1f32
   subpackages:
   - nl
 - name: github.com/vishvananda/netns
@@ -229,9 +232,9 @@ imports:
   subpackages:
   - patricia
 - name: gopkg.in/yaml.v2
-  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+  version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/client-go
-  version: 5d8c36c93cf544e3bde13caa4c6222b65753ec3c
+  version: 41a99d711af778a177f07402217b85d456b50da1
   subpackages:
   - discovery
   - kubernetes
@@ -348,27 +351,8 @@ imports:
   - tools/metrics
   - transport
 testImports:
-- name: github.com/docker/docker
-  version: 1f9b3ef9e9c74c2905780ac5347d018646a20022
-  subpackages:
-  - api/types
-  - api/types/blkiodev
-  - api/types/container
-  - api/types/events
-  - api/types/filters
-  - api/types/mount
-  - api/types/network
-  - api/types/reference
-  - api/types/registry
-  - api/types/strslice
-  - api/types/swarm
-  - api/types/time
-  - api/types/versions
-  - api/types/volume
-  - client
-  - pkg/tlsconfig
 - name: github.com/onsi/ginkgo
-  version: 00054c0bb96fc880d4e0be1b90937fad438c5290
+  version: 74c678d97c305753605c338c6c78c49ec104b5e7
   subpackages:
   - config
   - internal/codelocation
@@ -383,11 +367,9 @@ testImports:
   - internal/writer
   - reporters
   - reporters/stenographer
-  - reporters/stenographer/support/go-colorable
-  - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
+  version: d59fa0ac68bb5dd932ee8d24eed631cdd519efc3
   subpackages:
   - format
   - gbytes

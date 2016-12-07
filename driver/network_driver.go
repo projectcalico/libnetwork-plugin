@@ -8,9 +8,8 @@ import (
 	"github.com/pkg/errors"
 	libcalicoErrors "github.com/projectcalico/libcalico-go/lib/errors"
 
+	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/network"
-
-	dockerClient "github.com/docker/engine-api/client"
 	"github.com/projectcalico/libcalico-go/lib/api"
 	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
 	caliconet "github.com/projectcalico/libcalico-go/lib/net"
