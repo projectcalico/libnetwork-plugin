@@ -1,17 +1,18 @@
 package: github.com/projectcalico/libnetwork-plugin
 import:
 - package: github.com/Sirupsen/logrus
-- package: github.com/docker/engine-api
+- package: github.com/docker/docker
+  version: v1.13.0-rc3
   subpackages:
   - client
 - package: github.com/docker/go-plugins-helpers
+  version: 8a0198e77ac4e4ee167222caf6894cb32386c5fc # Need to use old version until we implement AllocateNetwork
   subpackages:
   - ipam
   - network
 - package: github.com/pkg/errors
-  version: ~0.8.0
 - package: github.com/projectcalico/libcalico-go
-  version: v1.0.0-rc2
+  version: v1.0.0-rc4
   subpackages:
   - lib/api
   - lib/client
@@ -20,13 +21,7 @@ import:
 - package: github.com/vishvananda/netlink
 testImport:
 - package: github.com/coreos/etcd
-  version: ea057115224138376622d63a51b699133310ea31
   subpackages:
-  - client
-- package: github.com/docker/docker
-  version: ~1.13.0-rc2
-  subpackages:
-  - api/types/network
   - client
 - package: github.com/onsi/ginkgo
 - package: github.com/onsi/gomega

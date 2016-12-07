@@ -4,7 +4,7 @@ SRC_FILES=$(shell find . -type f -name '*.go')
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 
 # Can choose different docker versions see list here - https://hub.docker.com/_/docker/
-DOCKER_VERSION?=dind
+DOCKER_VERSION?=rc-dind
 HOST_CHECKOUT_DIR?=$(shell pwd)
 CONTAINER_NAME?=calico/libnetwork-plugin
 
