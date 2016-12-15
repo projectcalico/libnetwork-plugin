@@ -45,30 +45,15 @@ libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
 	docker build -t $(CONTAINER_NAME) .
 	touch libnetwork-plugin.created
 
-# Install or update the tools used by the build
-.PHONY: update-tools
-update-tools:
-	go get -u github.com/Masterminds/glide
-	go get -u github.com/kisielk/errcheck
-	go get -u golang.org/x/tools/cmd/goimports
-	go get -u github.com/golang/lint/golint
-	go get -u github.com/onsi/ginkgo/ginkgo
-
 # Perform static checks on the code. The golint checks are allowed to fail, the others must pass.
 .PHONY: static-checks
 static-checks: vendor
-	# Format the code and clean up imports
-	find -name '*.go'  -not -path "./vendor/*" |xargs goimports -w
-
-	# Check for coding mistake and missing error handling
-	go vet -x $(glide nv)
-	errcheck . ./datastore/... ./utils/... ./driver/...
-
-	# Check code style
-	-golint main.go
-	-golint datastore
-	-golint utils
-	-golint driver
+	docker run --rm \
+		-e LOCAL_USER_ID=`id -u $$USER` \
+		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
+		calico/go-build sh -c '\
+			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
+			gometalinter --deadline=30s --disable-all --enable=goimports --enable=vet --enable=errcheck --enable=varcheck --enable=unused --enable=dupl $$(glide nv)'
 
 run-etcd:
 	@-docker rm -f calico-etcd calico-etcd-ssl
