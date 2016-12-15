@@ -224,7 +224,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 		PIt("creates a container with specific link local address", func() { // https://github.com/docker/docker/issues/28606
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --link-local-ip 169.254.0.50 %s --net %s -tid --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --link-local-ip 169.254.0.50 %s --net %s -tid --name %s busybox", name, name, name))
 
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))

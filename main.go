@@ -11,12 +11,13 @@ import (
 
 	"flag"
 
-	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
 	"fmt"
+
+	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
 )
 
 const (
-	ipamPluginName = "calico-ipam"
+	ipamPluginName    = "calico-ipam"
 	networkPluginName = "calico"
 )
 
@@ -26,8 +27,8 @@ var (
 )
 
 func init() {
-  // Output to stderr instead of stdout, could also be a file.
-  log.SetOutput(os.Stderr)
+	// Output to stderr instead of stdout, could also be a file.
+	log.SetOutput(os.Stderr)
 }
 
 func initializeClient() {
