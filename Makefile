@@ -5,7 +5,7 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 
 # Can choose different docker versions see list here - https://hub.docker.com/_/docker/
 DOCKER_VERSION?=rc-dind
-HOST_CHECKOUT_DIR?=$(shell pwd)
+HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin
 CALICO_BUILD?=calico/go-build
 default: all
@@ -97,27 +97,29 @@ endif
 	@echo "docker push quay.io/calico/libnetwork-plugin:latest"
 
 clean:
-	rm -rf dist *.tar vendor
+	rm -rf dist *.tar vendor docker
 
 run-plugin: run-etcd dist/libnetwork-plugin
 	-docker rm -f dind
-	docker run -h test --name dind --privileged -e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 -p 5375:2375 -d -v ${PWD}/dist/libnetwork-plugin:/libnetwork-plugin -ti docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
+	docker run -h test --name dind --privileged -e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 -p 5375:2375 -d -v $(CURDIR)/dist/libnetwork-plugin:/libnetwork-plugin -ti docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
 	docker exec -tid --privileged dind /libnetwork-plugin
 	# To speak to this docker:
 	# export DOCKER_HOST=localhost:5375
 
 .PHONY: test
 # Run the unit tests.
-test: run-plugin
-	CGO_ENABLED=0 ginkgo 
+test:
+	CGO_ENABLED=0 ginkgo -v
 
 test-containerized: run-plugin
-# TODO - It would be nicer if this got the docker binary from the dind container
-	docker run --rm --net=host \
-	-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	-v `which docker`:/usr/bin/docker	golang:1.7 sh -c '\
-		cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
-		apt-get update && apt-get install -y --no-install-recommends libltdl-dev && go get -v github.com/onsi/ginkgo/ginkgo && \
-		CGO_ENABLED=0 ginkgo -v'
+	docker cp dind:/usr/local/bin/docker .
+	docker run -ti --rm --net=host \
+		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(CURDIR)/docker:/usr/bin/docker	\
+		-e EXTRA_GROUP_ID=`getent group docker | cut -d: -f3` \
+		-e LOCAL_USER_ID=`id -u $$USER` \
+		calico/go-build sh -c '\
+			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
+			make test'
 
