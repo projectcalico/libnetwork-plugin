@@ -28,9 +28,6 @@ type NetworkDriver struct {
 	orchestratorID string
 	fixedMac       string
 
-	gatewayCIDRV4 string
-	gatewayCIDRV6 string
-
 	ifPrefix string
 
 	DummyIPV4Nexthop string
