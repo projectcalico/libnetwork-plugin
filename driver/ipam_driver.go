@@ -123,6 +123,13 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		return nil, err
 	}
 
+	// Calico IPAM does not allow you to choose a gateway.
+	if request.Options["RequestAddressType"] == "com.docker.network.gateway" {
+		err := errors.New("Calico IPAM does not support specifying a gateway.")
+		log.Errorln(err)
+		return nil, err
+	}
+
 	var IPs []caliconet.IP
 
 	if request.Address == "" {

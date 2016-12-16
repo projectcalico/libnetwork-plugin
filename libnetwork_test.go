@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -49,10 +50,11 @@ var _ = Describe("Libnetwork Tests", func() {
 				Eventually(session).Should(Exit(1))
 				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Non-Calico IPAM driver is used"))
 			})
-			PIt("doesn't allow a gateway to be specified", func() { //TODO https://github.com/projectcalico/libnetwork-plugin/issues/98
+			It("doesn't allow a gateway to be specified", func() {
 				session := DockerSession("docker network create $RANDOM -d calico --ipam-driver calico-ipam --subnet=192.169.0.0/16 --gateway 192.169.0.1")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("XXXX"))
+				expectedError := regexp.QuoteMeta("Error response from daemon: failed to allocate gateway (192.169.0.1): IpamDriver.RequestAddress: Calico IPAM does not support specifying a gateway.")
+				Eventually(session.Err).Should(Say(expectedError))
 			})
 			It("requires the subnet to match the calico pool", func() {
 				// I'm trying for a /24 but calico is configured with a /16 so it will fail.
