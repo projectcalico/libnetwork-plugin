@@ -71,6 +71,14 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 		}
 	}
 
+	// Calico driver does not allow you use the --internal flag
+	internal, ok := request.Options["com.docker.network.internal"].(bool)
+	if ok && internal {
+		err := errors.New("Calico driver does not support the --internal flag.")
+		log.Errorln(err)
+		return err
+	}
+
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
 		// so we can't check for calico IPAM using our known address space.
