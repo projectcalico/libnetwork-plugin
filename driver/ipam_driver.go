@@ -61,6 +61,12 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 		return nil, err
 	}
 
+	if len(request.Options) != 0 {
+		err := errors.New("Arbitrary options are not supported")
+		log.Errorln(err)
+		return nil, err
+	}
+
 	if request.V6 {
 		err := errors.New("IPv6 isn't supported")
 		log.Errorln(err)
