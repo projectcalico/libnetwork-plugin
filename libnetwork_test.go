@@ -62,10 +62,10 @@ var _ = Describe("Libnetwork Tests", func() {
 				Eventually(session).Should(Exit(1))
 				Eventually(session.Err).Should(Say("Error response from daemon: IpamDriver.RequestPool: The requested subnet must match the CIDR of a configured Calico IP Pool."))
 			})
-			PIt("rejects --internal being used", func() { //TODO https://github.com/projectcalico/libnetwork-plugin/issues/99
+			It("rejects --internal being used", func() {
 				session := DockerSession("docker network create $RANDOM --internal -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("XXX"))
+				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Calico driver does not support the --internal flag."))
 			})
 			It("rejects --ip-range being used", func() {
 				session := DockerSession("docker network create $RANDOM --ip-range 192.169.1.0/24 --subnet=192.169.0.0/16 -d calico --ipam-driver calico-ipam")
