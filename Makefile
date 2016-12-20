@@ -7,22 +7,21 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 DOCKER_VERSION?=rc-dind
 HOST_CHECKOUT_DIR?=$(shell pwd)
 CONTAINER_NAME?=calico/libnetwork-plugin
-
+CALICO_BUILD?=calico/go-build
 default: all
 all: test
-
-$(CONTAINER_NAME): libnetwork-plugin.created
 
 # Use this to populate the vendor directory after checking out the repository.
 # To update upstream dependencies, delete the glide.lock file first.
 vendor: glide.yaml
 	# To build without Docker just run "glide install -strip-vendor"
 	docker run --rm \
-	  -v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
-          --entrypoint /bin/sh dockerepo/glide -e -c ' \
-		cd /go/src/github.com/projectcalico/libnetwork-plugin && \
-		glide install -strip-vendor && \
-		chown $(shell id -u):$(shell id -u) -R vendor'
+		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
+		-v $(HOME)/.glide:/home/user/.glide:rw \
+		-e LOCAL_USER_ID=`id -u $$USER` \
+		$(CALICO_BUILD) /bin/sh -c ' \
+			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
+			glide install -strip-vendor' 
 
 install:
 	CGO_ENABLED=0 go install github.com/projectcalico/libnetwork-plugin
@@ -31,19 +30,18 @@ install:
 dist/libnetwork-plugin: vendor
 	-mkdir -p dist
 	docker run --rm \
-	-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
-	-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
-	golang:1.7 sh -c '\
-		cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
-		make build && \
-		chown -R $(shell id -u):$(shell id -u) dist'
+		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
+		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
+		-e LOCAL_USER_ID=`id -u $$USER` \
+		$(CALICO_BUILD) sh -c '\
+			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
+			make build'
 
 build: $(SRC_FILES) vendor
 	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
-libnetwork-plugin.created: Dockerfile dist/libnetwork-plugin
+$(CONTAINER_NAME): dist/libnetwork-plugin
 	docker build -t $(CONTAINER_NAME) .
-	touch libnetwork-plugin.created
 
 # Perform static checks on the code. The golint checks are allowed to fail, the others must pass.
 .PHONY: static-checks
@@ -67,7 +65,7 @@ run-etcd:
 semaphore: test-containerized
 	set -e; \
 	if [ -z $$PULL_REQUEST_NUMBER ]; then \
-		$(MAKE) libnetwork-plugin.created; \
+		$(MAKE) $(CONTAINER_NAME); \
 		docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$BRANCH_NAME && docker push $(CONTAINER_NAME):$$BRANCH_NAME; \
 		docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$BRANCH_NAME && docker push quay.io/$(CONTAINER_NAME):$$BRANCH_NAME; \
 		if [ "$$BRANCH_NAME" = "master" ]; then \
@@ -82,7 +80,7 @@ ifndef VERSION
 	$(error VERSION is undefined - run using make release VERSION=vX.Y.Z)
 endif
 	git tag $(VERSION)
-	$(MAKE) libnetwork-plugin.created
+	$(MAKE) $(CONTAINER_NAME) 
 	# Check that the version output appears on a line of its own (the -x option to grep).
 # Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
 	@echo "Checking if the tag made it into the binary"
@@ -99,7 +97,7 @@ endif
 	@echo "docker push quay.io/calico/libnetwork-plugin:latest"
 
 clean:
-	rm -rf *.created dist *.tar vendor
+	rm -rf dist *.tar vendor
 
 run-plugin: run-etcd dist/libnetwork-plugin
 	-docker rm -f dind
