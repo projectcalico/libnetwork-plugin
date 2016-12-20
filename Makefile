@@ -1,3 +1,7 @@
+# Disable make's implicit rules, which are not useful for golang, and slow down the build
+# considerably.
+.SUFFIXES:
+
 SRC_FILES=$(shell find . -type f -name '*.go')
 
 # These variables can be overridden by setting an environment variable.
