@@ -72,10 +72,10 @@ var _ = Describe("Libnetwork Tests", func() {
 				Eventually(session).Should(Exit(1))
 				Eventually(session.Err).Should(Say("Error response from daemon: IpamDriver.RequestPool: Calico IPAM does not support sub pool configuration on 'docker create network'. Calico IP Pools should be configured first and IP assignment is from those pre-configured pools."))
 			})
-			PIt("rejects --ipam-opt being used", func() { //TODO https://github.com/projectcalico/libnetwork-plugin/issues/100
+			It("rejects --ipam-opt being used", func() {
 				session := DockerSession("docker network create $RANDOM --ipam-opt REJECT -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("XXX"))
+				Eventually(session.Err).Should(Say("Error response from daemon: IpamDriver.RequestPool: Arbitrary options are not supported"))
 			})
 			It("rejects --opt being used", func() {
 				session := DockerSession("docker network create $RANDOM --opt REJECT -d calico --ipam-driver calico-ipam")
