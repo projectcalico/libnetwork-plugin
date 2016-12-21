@@ -33,16 +33,18 @@ install:
 # Run the build in a container. Useful for CI
 dist/libnetwork-plugin: vendor
 	-mkdir -p dist
+	-mkdir -p .go-pkg-cache
 	docker run --rm \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
 		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
+		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-e LOCAL_USER_ID=`id -u $$USER` \
 		$(CALICO_BUILD) sh -c '\
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make build'
 
 build: $(SRC_FILES) vendor
-	CGO_ENABLED=0 go build -v -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
+	CGO_ENABLED=0 go build -v -i -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 $(CONTAINER_NAME): dist/libnetwork-plugin
 	docker build -t $(CONTAINER_NAME) .
@@ -101,7 +103,7 @@ endif
 	@echo "docker push quay.io/calico/libnetwork-plugin:latest"
 
 clean:
-	rm -rf dist *.tar vendor docker
+	rm -rf dist *.tar vendor docker .go-pkg-cache
 
 run-plugin: run-etcd dist/libnetwork-plugin
 	-docker rm -f dind
@@ -120,6 +122,7 @@ test-containerized: run-plugin
 	docker run -ti --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-v $(CURDIR)/docker:/usr/bin/docker	\
 		-e EXTRA_GROUP_ID=`getent group docker | cut -d: -f3` \
 		-e LOCAL_USER_ID=`id -u $$USER` \
