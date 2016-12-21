@@ -12,6 +12,9 @@ DOCKER_VERSION?=rc-dind
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin
 CALICO_BUILD?=calico/go-build
+PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
+DOCKER_BINARY_CONTAINER?=docker-binary-container
+
 default: all
 all: test
 
@@ -107,23 +110,32 @@ clean:
 
 run-plugin: run-etcd dist/libnetwork-plugin
 	-docker rm -f dind
-	docker run -h test --name dind --privileged -e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 -p 5375:2375 -d -v $(CURDIR)/dist/libnetwork-plugin:/libnetwork-plugin -ti docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
-	docker exec -tid --privileged dind /libnetwork-plugin
+	docker run -tid -h test --name dind --privileged $(ADDITIONAL_DIND_ARGS) \
+		-e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 \
+		-p 5375:2375 \
+		-v $(PLUGIN_LOCATION):/libnetwork-plugin \
+		docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
+	# View the logs by running 'docker exec dind cat plugin.log'
+	docker exec -tid --privileged dind sh -c '/libnetwork-plugin 2>>/plugin.log'
 	# To speak to this docker:
 	# export DOCKER_HOST=localhost:5375
 
 .PHONY: test
 # Run the unit tests.
 test:
-	CGO_ENABLED=0 ginkgo -v
+	CGO_ENABLED=0 ginkgo -v tests/*
 
-test-containerized: run-plugin
-	docker cp dind:/usr/local/bin/docker .
+test-containerized: dist/libnetwork-plugin
+	-docker rm -f $(DOCKER_BINARY_CONTAINER) 2>&1
+	docker create --name $(DOCKER_BINARY_CONTAINER) docker:$(DOCKER_VERSION)
+	docker cp $(DOCKER_BINARY_CONTAINER):/usr/local/bin/docker .
+	docker rm -f $(DOCKER_BINARY_CONTAINER)
 	docker run -ti --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-v $(CURDIR)/docker:/usr/bin/docker	\
+		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin \
 		-e EXTRA_GROUP_ID=`getent group docker | cut -d: -f3` \
 		-e LOCAL_USER_ID=`id -u $$USER` \
 		calico/go-build sh -c '\

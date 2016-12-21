@@ -1,6 +1,9 @@
 package driver
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 const (
 	// Calico IPAM module does not allow selection of pools from which to allocate
@@ -18,5 +21,6 @@ var IFPrefix = "cali"
 func init() {
 	if os.Getenv("CALICO_LIBNETWORK_IFPREFIX") != "" {
 		IFPrefix = os.Getenv("CALICO_LIBNETWORK_IFPREFIX")
+		log.Println("Updated CALICO_LIBNETWORK_IFPREFIX to ", IFPrefix)
 	}
 }

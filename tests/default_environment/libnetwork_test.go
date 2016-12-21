@@ -1,43 +1,26 @@
-package main
+package default_environment
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
-	"os"
-	"os/exec"
 	"regexp"
-	"strings"
-	"time"
 
-	etcdclient "github.com/coreos/etcd/client"
-	"github.com/docker/docker/api/types/network"
-	dockerclient "github.com/docker/docker/client"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 	. "github.com/onsi/gomega/gexec"
 	mathutils "github.com/projectcalico/libnetwork-plugin/utils/math"
+	. "github.com/projectcalico/libnetwork-plugin/utils/test"
 )
-
-var kapi etcdclient.KeysAPI
-
-func init() {
-	// Create a random seed
-	rand.Seed(time.Now().UTC().UnixNano())
-
-	cfg := etcdclient.Config{Endpoints: []string{"http://127.0.0.1:2379"}}
-	c, _ := etcdclient.New(cfg)
-	kapi = etcdclient.NewKeysAPI(c)
-}
-
-// Assume that the plugin is running along with a clean etd
 
 var _ = Describe("Libnetwork Tests", func() {
 	BeforeEach(func() {
 		WipeEtcd()
 		CreatePool("192.169.0.0/16")
 	})
+
+	// Run the plugin just once for all tests in this file.
+	RunPlugin("")
 
 	// Test the docker network commands - no need to test inspect or ls
 	Describe("docker network create", func() {
@@ -280,76 +263,3 @@ var _ = Describe("Libnetwork Tests", func() {
 	//docker stop/rm - stop and rm are the same as far as the plugin is concerned
 	// TODO - check that the endpoint is removed from etcd and that the  veth is removed
 })
-
-// Get the endpoint information from Docker
-func GetDockerEndpoint(container, network string) *network.EndpointSettings {
-	os.Setenv("DOCKER_API_VERSION", "1.24")
-	os.Setenv("DOCKER_HOST", "http://localhost:5375")
-	defer os.Setenv("DOCKER_HOST", "")
-	cli, err := dockerclient.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	info, err := cli.ContainerInspect(context.Background(), container)
-	if err != nil {
-		panic(err)
-	}
-
-	return info.NetworkSettings.Networks[network]
-}
-
-// Get an string for a given etcd path
-func GetEtcdString(path string) string {
-	// TODO - would be better to use libcalico to get data rather than talking to etcd direct
-	resp, err := kapi.Get(context.Background(),
-		path, nil)
-	if err != nil {
-		panic(err)
-	}
-	return resp.Node.Value
-}
-
-// Create a pool in etcd
-func CreatePool(pool string) {
-	_, err := kapi.Set(context.Background(),
-		fmt.Sprintf("/calico/v1/ipam/v4/pool/%s", strings.Replace(pool, "/", "-", -1)),
-		fmt.Sprintf(`{"cidr": "%s"}`, pool), nil)
-	if err != nil {
-		panic(err)
-	}
-}
-
-// Delete everything under /calico from etcd
-func WipeEtcd() {
-	_, err := kapi.Delete(context.Background(), "/calico", &etcdclient.DeleteOptions{Dir: true, Recursive: true})
-	if err != nil && !etcdclient.IsKeyNotFound(err) {
-		panic(err)
-	}
-}
-
-// Run a command on the  Docker in docker host returning a string
-func DockerString(cmd string) string {
-	GinkgoWriter.Write([]byte(fmt.Sprintf("Running command [%s]\n", cmd)))
-	command := exec.Command("bash", "-c", fmt.Sprintf("docker exec -i dind sh -c '%s'", cmd))
-	_, _ = command.StdinPipe()
-	out, err := command.Output()
-	if err != nil {
-		GinkgoWriter.Write(out)
-		GinkgoWriter.Write(err.(*exec.ExitError).Stderr)
-		Fail("Command failed")
-	}
-	return strings.TrimSpace(string(out))
-}
-
-// Run a docker command command returning the Session
-func DockerSession(cmd string) *Session {
-	GinkgoWriter.Write([]byte(fmt.Sprintf("Running command [%s]\n", cmd)))
-	command := exec.Command("bash", "-c", fmt.Sprintf("docker exec -i dind sh -c '%s'", cmd))
-	_, _ = command.StdinPipe()
-	session, err := Start(command, GinkgoWriter, GinkgoWriter)
-	if err != nil {
-		Fail("Command failed")
-	}
-	return session
-}
