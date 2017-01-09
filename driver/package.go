@@ -13,6 +13,7 @@ const (
 	PoolIDV4 = "CalicoPoolIPv4"
 	PoolIDV6 = "CalicoPoolIPv6"
 
+	CalicoLocalAddressSpace  = "CalicoLocalAddressSpace"
 	CalicoGlobalAddressSpace = "CalicoGlobalAddressSpace"
 )
 
