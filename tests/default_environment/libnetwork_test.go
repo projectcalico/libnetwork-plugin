@@ -169,9 +169,9 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))
 		})
-		PIt("creates a container with specific MAC", func() { //https://github.com/projectcalico/libnetwork-plugin/issues/97
+		It("creates a container with specific MAC", func() {
 			// Create a container that will just sit in the background
-			chosen_mac := "11:22:33:44:55:66"
+			chosen_mac := "00:22:33:44:55:66"
 			DockerString(fmt.Sprintf("docker run --mac-address %s --net %s -tid --name %s busybox", chosen_mac, name, name))
 
 			// Gather information for assertions

@@ -37,8 +37,8 @@ func NewNetworkDriver(client *datastoreClient.Client) network.Driver {
 	return NetworkDriver{
 		client: client,
 
-		// The MAC address of the interface in the container is arbitrary, so for
-		// simplicity, use a fixed MAC.
+		// The MAC address of the interface in the container is arbitrary, for
+		// simplicity, use a fixed MAC unless overridden by user.
 		fixedMac: "EE:EE:EE:EE:EE:EE",
 
 		// Orchestrator and container IDs used in our endpoint identification. These
@@ -138,7 +138,17 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	endpoint.Metadata.Workload = d.containerName
 	endpoint.Metadata.Name = request.EndpointID
 	endpoint.Spec.InterfaceName = "cali" + request.EndpointID[:mathutils.MinInt(11, len(request.EndpointID))]
-	mac, _ := net.ParseMAC(d.fixedMac)
+	userProvidedMac := (request.Interface.MacAddress != "")
+	var mac net.HardwareAddr
+	if userProvidedMac {
+		if mac, err = net.ParseMAC(request.Interface.MacAddress); err != nil {
+			err = errors.Wrap(err, "Error parsing MAC address")
+			log.Errorln(err)
+			return nil, err
+		}
+	} else {
+		mac, _ = net.ParseMAC(d.fixedMac)
+	}
 	endpoint.Spec.MAC = &caliconet.MAC{HardwareAddr: mac}
 	endpoint.Spec.IPNetworks = append(endpoint.Spec.IPNetworks, addresses...)
 
@@ -189,12 +199,18 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	}
 
 	log.Debugf("Workload created, data: %+v\n", endpoint)
-
-	response := &network.CreateEndpointResponse{
-		Interface: &network.EndpointInterface{
+	var endpointInterface network.EndpointInterface
+	if !userProvidedMac {
+		endpointInterface = network.EndpointInterface{
 			MacAddress: string(d.fixedMac),
-		},
+		}
+	} else {
+		// empty string indicates user provided MAC address.
+		endpointInterface = network.EndpointInterface{
+			MacAddress: "",
+		}
 	}
+	response := &network.CreateEndpointResponse{Interface: &endpointInterface}
 
 	logutils.JSONMessage("CreateEndpoint response", response)
 
@@ -248,15 +264,6 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		err = errors.Wrapf(
 			err, "Veth creation error, hostInterfaceName=%v, tempInterfaceName=%v",
 			hostInterfaceName, tempInterfaceName)
-		log.Errorln(err)
-		return nil, err
-	}
-
-	// libnetwork doesn't set the MAC address properly, so set it here.
-	if err = netns.SetVethMac(tempInterfaceName, d.fixedMac); err != nil {
-		log.Debugf("Veth mac setting for %v failed, removing veth for %v\n", tempInterfaceName, hostInterfaceName)
-		err = netns.RemoveVeth(hostInterfaceName)
-		err = errors.Wrapf(err, "Veth removing for %v error", hostInterfaceName)
 		log.Errorln(err)
 		return nil, err
 	}
