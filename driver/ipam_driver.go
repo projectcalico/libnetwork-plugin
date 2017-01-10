@@ -39,7 +39,7 @@ func (i IpamDriver) GetCapabilities() (*ipam.CapabilitiesResponse, error) {
 
 func (i IpamDriver) GetDefaultAddressSpaces() (*ipam.AddressSpacesResponse, error) {
 	resp := &ipam.AddressSpacesResponse{
-		LocalDefaultAddressSpace:  "CalicoLocalAddressSpace",
+		LocalDefaultAddressSpace:  CalicoLocalAddressSpace,
 		GlobalDefaultAddressSpace: CalicoGlobalAddressSpace,
 	}
 	logutils.JSONMessage("GetDefaultAddressSpace response", resp)
