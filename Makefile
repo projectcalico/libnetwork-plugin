@@ -15,7 +15,7 @@ CALICO_BUILD?=calico/go-build
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
-LOCAL_USER_ID?=$(shell id -u $USER)
+LOCAL_USER_ID?=$(shell id -u $$USER)
 
 default: all
 all: test
