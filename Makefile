@@ -15,6 +15,8 @@ CALICO_BUILD?=calico/go-build
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
+LOCAL_USER_ID?=$(shell id -u $$USER)
+
 default: all
 all: test
 
@@ -25,7 +27,7 @@ vendor: glide.yaml
 	docker run --rm \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
 		-v $(HOME)/.glide:/home/user/.glide:rw \
-		-e LOCAL_USER_ID=`id -u $$USER` \
+		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		$(CALICO_BUILD) /bin/sh -c ' \
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			glide install -strip-vendor' 
@@ -41,7 +43,7 @@ dist/libnetwork-plugin: vendor
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
 		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
-		-e LOCAL_USER_ID=`id -u $$USER` \
+		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		$(CALICO_BUILD) sh -c '\
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make build'
@@ -56,7 +58,7 @@ $(CONTAINER_NAME): dist/libnetwork-plugin
 .PHONY: static-checks
 static-checks: vendor
 	docker run --rm \
-		-e LOCAL_USER_ID=`id -u $$USER` \
+		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		calico/go-build sh -c '\
 			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
@@ -137,7 +139,7 @@ test-containerized: dist/libnetwork-plugin
 		-v $(CURDIR)/docker:/usr/bin/docker	\
 		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin \
 		-e EXTRA_GROUP_ID=`getent group docker | cut -d: -f3` \
-		-e LOCAL_USER_ID=`id -u $$USER` \
+		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		calico/go-build sh -c '\
 			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make test'
