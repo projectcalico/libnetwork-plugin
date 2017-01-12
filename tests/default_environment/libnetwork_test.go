@@ -139,6 +139,9 @@ var _ = Describe("Libnetwork Tests", func() {
 			endpoint_id := docker_endpoint.EndpointID
 			interface_name := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
 
+			// Make sure that the MAC we got from docker matches the fixed mac that we use
+			Expect(mac).Should(Equal("ee:ee:ee:ee:ee:ee"))
+
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
