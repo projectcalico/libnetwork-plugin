@@ -53,6 +53,63 @@ On OSX/Windows you can't run Docker natively. To allow the Makefile to write the
 Run `make test` like this: `LOCAL_USER_ID=1000 LOCAL_GROUP_ID=100 make test-containerized`
 
 
+
+## IPv6 Usage
+
+*Note: IPv4 can't be disabled, IPv6 is enabled in addition to IPv4.*
+
+Docker IPv6 support must be enabled e.g. 
+```
+dockerd --cluster-store=etcd://127.0.0.1:2379 --ipv6 --fixed-cidr-v6="2001:db8:1::/64"
+```
+
+### Start the libnetwork-plugin
+
+```
+sudo dist/libnetwork-plugin
+```
+
+### Add an IPv6 address to the host
+
+```
+sudo ip addr add fd80:24e2:f998:72d7::1/112 dev eth1
+```
+
+### Start calico/node, without using the calico/node libnetwork-plugin, also pass in the host IPv6 address
+
+```
+sudo calicoctl node run --disable-docker-networking --ip6=fd80:24e2:f998:72d7::1
+```
+
+### Create an IPv6 network
+
+```
+docker network create --ipv6 -d calico --ipam-driver calico-ipam my_net
+```
+
+### Run containers on the IPv6 network
+
+```
+  docker run --net my_net --name workload-A -tid busybox
+  docker run --net my_net --name workload-B -tid busybox
+```
+
+
+### Check IPv6 network connectivity
+
+```
+  docker exec workload-A ping -6 -c 4 workload-B.my_net
+  docker exec workload-B ping -6 -c 4 workload-A.my_net
+```
+
+### Check IPv4 network connectivity
+
+```
+  docker exec workload-A ping -4 -c 4 workload-B.my_net
+  docker exec workload-B ping -4 -c 4 workload-A.my_net
+```
+
+
 ## Known limitations
 The following is a list of known limitations when using the Calico libnetwork
 driver:
@@ -60,7 +117,6 @@ driver:
    once a container endpoint is created, it is possible to manually add 
    additional Calico profiles to that endpoint (effectively adding the 
    container into another network).
-- IPv6 is not currently supported
 
 ## Configuring
 
