@@ -13,3 +13,4 @@ cover
 calicoctl
 *.tar
 *.created
+.go-pkg-cache/
