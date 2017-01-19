@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -89,22 +90,47 @@ func (d NetworkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) 
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	logutils.JSONMessage("CreateNetwork", request)
 
-	genericOpts, ok := request.Options["com.docker.network.generic"]
-	if ok {
-		opts, ok := genericOpts.(map[string]interface{})
-		if ok && len(opts) != 0 {
-			err := errors.New("Arbitrary options are not supported")
-			log.Println(err)
+	// Reject all options (--internal, --enable_ipv6, etc)
+	for k, v := range request.Options {
+		optionSet := false
+		flagName := k
+		flagValue := fmt.Sprintf("%s", v)
+		multipleFlags := false
+		switch v := v.(type) {
+		case bool:
+			// if v == true then optionSet = true
+			optionSet = v
+			flagName = "--" + strings.TrimPrefix(k, "com.docker.network.")
+			flagValue = ""
+			break
+		case map[string]interface{}:
+			optionSet = len(v) != 0
+			flagName = ""
+			numFlags := 0
+			for mk, _ := range v {
+				flagName = flagName + "" + mk + ", "
+				numFlags++
+			}
+			multipleFlags = numFlags > 1
+			flagName = strings.TrimSuffix(flagName, ", ")
+			flagValue = ""
+			break
+		default:
+			// for unknown case let optionSet = true
+			optionSet = true
+		}
+		if optionSet {
+			if flagValue != "" {
+				flagValue = " (" + flagValue + ")"
+			}
+			f := "flag"
+			if multipleFlags {
+				f = "flags"
+			}
+			err := errors.New("Calico driver does not support the " + f + " " + flagName + flagValue + ".")
+			log.Errorln(err)
 			return err
 		}
-	}
-
-	// Calico driver does not allow you use the --internal flag
-	internal, ok := request.Options["com.docker.network.internal"].(bool)
-	if ok && internal {
-		err := errors.New("Calico driver does not support the --internal flag.")
-		log.Errorln(err)
-		return err
 	}
 
 	for _, ipData := range request.IPv4Data {
@@ -230,9 +256,9 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 
 	log.Debugf("Workload created, data: %+v\n", endpoint)
 
-    if d.labelEndpoints {
-        go d.populateWorkloadEndpointWithLabels(request.NetworkID, endpoint)
-    }
+	if d.labelEndpoints {
+		go d.populateWorkloadEndpointWithLabels(request.NetworkID, endpoint)
+	}
 
 	var endpointInterface network.EndpointInterface
 	if !userProvidedMac {

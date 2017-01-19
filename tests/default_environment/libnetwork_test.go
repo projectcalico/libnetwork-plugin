@@ -48,7 +48,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			It("rejects --internal being used", func() {
 				session := DockerSession("docker network create $RANDOM --internal -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Calico driver does not support the --internal flag."))
+				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Calico driver does not support the flag --internal."))
 			})
 			It("rejects --ip-range being used", func() {
 				session := DockerSession("docker network create $RANDOM --ip-range 192.169.1.0/24 --subnet=192.169.0.0/16 -d calico --ipam-driver calico-ipam")
@@ -63,7 +63,12 @@ var _ = Describe("Libnetwork Tests", func() {
 			It("rejects --opt being used", func() {
 				session := DockerSession("docker network create $RANDOM --opt REJECT -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Arbitrary options are not supported"))
+				Eventually(session.Err).Should(Say("NetworkDriver.CreateNetwork: Calico driver does not support the flag REJECT."))
+			})
+			It("rejects multiple --opt being used", func() {
+				session := DockerSession("docker network create $RANDOM --opt REJECT --opt REJECT2 -d calico --ipam-driver calico-ipam")
+				Eventually(session).Should(Exit(1))
+				Eventually(session.Err).Should(Say("NetworkDriver.CreateNetwork: Calico driver does not support the flags REJECT, REJECT2."))
 			})
 		})
 		Context("checking success cases", func() {
