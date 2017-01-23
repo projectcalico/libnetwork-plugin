@@ -6,7 +6,6 @@ import:
   subpackages:
   - client
 - package: github.com/docker/go-plugins-helpers
-  version: 8a0198e77ac4e4ee167222caf6894cb32386c5fc # Need to use old version until we implement AllocateNetwork
   subpackages:
   - ipam
   - network

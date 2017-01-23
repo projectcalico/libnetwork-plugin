@@ -1,5 +1,5 @@
-hash: 89217814ede547cfb86bfb4c536808aebcb7ba3feed24898f1643c12bf5e23be
-updated: 2016-12-13T16:28:16.406100592-08:00
+hash: 479530906fa73fea1b8aa3a7440a2b21e0c9a29a6e580543e7627bec82814744
+updated: 2017-01-19T10:57:27.374927354-08:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -28,14 +28,13 @@ imports:
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
   subpackages:
-  - activation
+  - daemon
   - journal
   - util
 - name: github.com/coreos/pkg
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
   subpackages:
   - capnslog
-  - dlopen
   - health
   - httputil
   - timeutil
@@ -68,13 +67,13 @@ imports:
   - client
   - pkg/tlsconfig
 - name: github.com/docker/go-connections
-  version: 4ccf312bf1d35e5dbda654e57a9be4c3f3cd0366
+  version: eb315e36415380e7c2fdee175262560ff42359da
   subpackages:
   - nat
   - sockets
   - tlsconfig
 - name: github.com/docker/go-plugins-helpers
-  version: 8a0198e77ac4e4ee167222caf6894cb32386c5fc
+  version: 261c0c7fc902aeb7ad448df38e6ee370a3e0e597
   subpackages:
   - ipam
   - network
@@ -126,10 +125,41 @@ imports:
   - jwriter
 - name: github.com/Microsoft/go-winio
   version: 24a3e3d3fc7451805e09d11e11e95d9a0a4f205e
-- name: github.com/opencontainers/runc
-  version: 083933fb9092a3d65d682ba34a08676104c95462
+- name: github.com/onsi/ginkgo
+  version: 00054c0bb96fc880d4e0be1b90937fad438c5290
   subpackages:
-  - libcontainer/user
+  - config
+  - internal/codelocation
+  - internal/containernode
+  - internal/failer
+  - internal/leafnodes
+  - internal/remote
+  - internal/spec
+  - internal/specrunner
+  - internal/suite
+  - internal/testingtproxy
+  - internal/writer
+  - reporters
+  - reporters/stenographer
+  - reporters/stenographer/support/go-colorable
+  - reporters/stenographer/support/go-isatty
+  - types
+- name: github.com/onsi/gomega
+  version: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
+  subpackages:
+  - format
+  - gbytes
+  - gexec
+  - internal/assertion
+  - internal/asyncassertion
+  - internal/oraclematcher
+  - internal/testingtsupport
+  - matchers
+  - matchers/support/goraph/bipartitegraph
+  - matchers/support/goraph/edge
+  - matchers/support/goraph/node
+  - matchers/support/goraph/util
+  - types
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pkg/errors

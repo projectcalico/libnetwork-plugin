@@ -87,6 +87,21 @@ func (d NetworkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) 
 	return &resp, nil
 }
 
+// AllocateNetwork is used for swarm-mode support in remote plugins, which
+// Calico's libnetwork-plugin doesn't currently support.
+func (d NetworkDriver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
+	var resp network.AllocateNetworkResponse
+	logutils.JSONMessage("AllocateNetwork response", resp)
+	return &resp, nil
+}
+
+// FreeNetwork is used for swarm-mode support in remote plugins, which
+// Calico's libnetwork-plugin doesn't currently support.
+func (d NetworkDriver) FreeNetwork(request *network.FreeNetworkRequest) error {
+	logutils.JSONMessage("FreeNetwork request", request)
+	return nil
+}
+
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	logutils.JSONMessage("CreateNetwork", request)
 
