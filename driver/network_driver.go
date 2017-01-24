@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -122,8 +123,15 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 			optionSet = len(v) != 0
 			flagName = ""
 			numFlags := 0
-			for mk, _ := range v {
-				flagName = flagName + "" + mk + ", "
+			// Sort flags for consistent error reporting
+			flags := []string{}
+			for flag := range v {
+				flags = append(flags, flag)
+			}
+			sort.Strings(flags)
+
+			for _, flag := range flags {
+				flagName = flagName + flag + ", "
 				numFlags++
 			}
 			multipleFlags = numFlags > 1
