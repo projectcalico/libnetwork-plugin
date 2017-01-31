@@ -15,9 +15,8 @@ CALICO_BUILD?=calico/go-build
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
-# To run with non-native docker (e.g. on Windows or OSX) you might need to overide these variables
+# To run with non-native docker (e.g. on Windows or OSX) you might need to overide this variable
 LOCAL_USER_ID?=$(shell id -u $$USER)
-LOCAL_GROUP_ID?=$(shell getent group docker | cut -d: -f3)
 
 default: all
 all: test
@@ -137,11 +136,9 @@ test-containerized: dist/libnetwork-plugin
 	docker run -ti --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-v $(CURDIR)/docker:/usr/bin/docker	\
 		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin \
-		-e EXTRA_GROUP_ID=$(LOCAL_GROUP_ID) \
-		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
+		-e LOCAL_USER_ID=0 \
 		calico/go-build sh -c '\
 			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make test'
