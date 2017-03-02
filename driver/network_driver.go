@@ -105,9 +105,19 @@ func (d NetworkDriver) FreeNetwork(request *network.FreeNetworkRequest) error {
 
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	logutils.JSONMessage("CreateNetwork", request)
-
+	knownOpts := map[string]bool{"com.docker.network.enable_ipv6": true}
 	// Reject all options (--internal, --enable_ipv6, etc)
 	for k, v := range request.Options {
+		skip := false
+		for known, _ := range knownOpts {
+			if k == known {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
 		optionSet := false
 		flagName := k
 		flagValue := fmt.Sprintf("%s", v)
@@ -159,9 +169,20 @@ func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) erro
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
 		// so we can't check for calico IPAM using our known address space.
+		// The Docker issue, https://github.com/projectcalico/libnetwork-plugin/issues/77,
+		// was fixed sometime between 1.11.2 and 1.12.3.
 		// Also the pool might not have a fixed values if --subnet was passed
 		// So the only safe thing is to check for our special gateway value
 		if ipData.Gateway != "0.0.0.0/0" {
+			err := errors.New("Non-Calico IPAM driver is used. Note: Docker before 1.12.3 is unsupported")
+			log.Errorln(err)
+			return err
+		}
+	}
+
+	for _, ipData := range request.IPv6Data {
+		// Don't support older versions of Docker which have a bug where the correct AddressSpace isn't provided
+		if ipData.AddressSpace != CalicoGlobalAddressSpace {
 			err := errors.New("Non-Calico IPAM driver is used")
 			log.Errorln(err)
 			return err
@@ -188,7 +209,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	}
 
 	log.Debugf("Creating endpoint %v\n", request.EndpointID)
-	if request.Interface.Address == "" {
+	if request.Interface.Address == "" && request.Interface.AddressIPv6 == "" {
 		err := errors.New("No address assigned for endpoint")
 		log.Errorln(err)
 		return nil, err
@@ -207,6 +228,18 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		}
 
 		addresses = append(addresses, caliconet.IPNet{IPNet: net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}})
+	}
+
+	if request.Interface.AddressIPv6 != "" {
+		// Parse the address this function was passed.
+		ip6, ipnet, err := net.ParseCIDR(request.Interface.AddressIPv6)
+		log.Debugf("Parsed IP %v from (%v) \n", ip6, request.Interface.AddressIPv6)
+		if err != nil {
+			err = errors.Wrapf(err, "Parsing %v as CIDR failed", request.Interface.AddressIPv6)
+			log.Errorln(err)
+			return nil, err
+		}
+		addresses = append(addresses, caliconet.IPNet{IPNet: *ipnet})
 	}
 
 	endpoint := api.NewWorkloadEndpoint()
@@ -370,6 +403,19 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		RouteType:   1, // 1 = CONNECTED
 		NextHop:     "",
 	})
+
+	linkLocalAddr := netns.GetLinkLocalAddr(hostInterfaceName)
+	if linkLocalAddr == nil {
+		log.Warnf("No IPv6 link local address for %s", hostInterfaceName)
+	} else {
+		resp.GatewayIPv6 = fmt.Sprintf("%s", linkLocalAddr)
+		nextHopIPv6 := fmt.Sprintf("%s/128", linkLocalAddr)
+		resp.StaticRoutes = append(resp.StaticRoutes, &network.StaticRoute{
+			Destination: nextHopIPv6,
+			RouteType:   1, // 1 = CONNECTED
+			NextHop:     "",
+		})
+	}
 
 	logutils.JSONMessage("Join response", resp)
 

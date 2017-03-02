@@ -17,7 +17,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			RunPlugin("-e CALICO_LIBNETWORK_LABEL_ENDPOINTS=true")
 
 			// Since running the plugin starts etcd, the pool needs to be created after.
-			CreatePool("192.169.1.0/24")
+			CreatePool("192.169.1.0/24", false)
 
 			name := fmt.Sprintf("run%d", rand.Uint32())
 			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))
@@ -61,7 +61,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			RunPlugin("-e CALICO_LIBNETWORK_LABEL_ENDPOINTS=true -e CALICO_LIBNETWORK_CREATE_PROFILES=false")
 
 			// Since running the plugin starts etcd, the pool needs to be created after.
-			CreatePool("192.169.2.0/24")
+			CreatePool("192.169.2.0/24", true)
 
 			name := fmt.Sprintf("run%d", rand.Uint32())
 			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))

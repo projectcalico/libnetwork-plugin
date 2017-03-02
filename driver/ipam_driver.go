@@ -66,16 +66,20 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 		log.Errorln(err)
 		return nil, err
 	}
-
+	var poolID string
+	var pool string
+	var gateway string
 	if request.V6 {
-		err := errors.New("IPv6 isn't supported")
-		log.Errorln(err)
-		return nil, err
+		// Default the poolID to the fixed value.
+		poolID = i.poolIDV6
+		pool = "::/0"
+		gateway = "::/0"
+	} else {
+		// Default the poolID to the fixed value.
+		poolID = i.poolIDV4
+		pool = "0.0.0.0/0"
+		gateway = "0.0.0.0/0"
 	}
-
-	// Default the poolID to the fixed value.
-	poolID := i.poolIDV4
-	pool := "0.0.0.0/0"
 
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
@@ -107,7 +111,7 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 	resp := &ipam.RequestPoolResponse{
 		PoolID: poolID,
 		Pool:   pool,
-		Data:   map[string]string{"com.docker.network.gateway": "0.0.0.0/0"},
+		Data:   map[string]string{"com.docker.network.gateway": gateway},
 	}
 
 	logutils.JSONMessage("RequestPool response", resp)
@@ -145,10 +149,20 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// If the poolID isn't the fixed one then find the pool to assign from.
 		// poolV4 defaults to nil to assign from across all pools.
 		var poolV4 []caliconet.IPNet
-		if request.PoolID != PoolIDV4 {
+
+		var poolV6 []caliconet.IPNet
+		var numIPv4, numIPv6, version int
+		if request.PoolID == PoolIDV4 {
+			version = 4
+			numIPv4 = 1
+			numIPv6 = 0
+		} else if request.PoolID == PoolIDV6 {
+			version = 6
+			numIPv4 = 0
+			numIPv6 = 1
+		} else {
 			poolsClient := i.client.IPPools()
 			_, ipNet, err := caliconet.ParseCIDR(request.PoolID)
-
 			if err != nil {
 				err = errors.Wrapf(err, "Invalid CIDR - %v", request.PoolID)
 				log.Errorln(err)
@@ -162,19 +176,26 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 				log.Errorln(err)
 				return nil, err
 			}
-			poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
-			log.Debugln("Using specific pool ", poolV4)
+			version = ipNet.Version()
+			if version == 4 {
+				poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				log.Debugln("Using specific pool ", poolV4)
+			} else if version == 6 {
+				poolV6 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				log.Debugln("Using specific pool ", poolV6)
+			}
 		}
 
 		// Auto assign an IP address.
-		// IPv4 pool will be nil if the docker network doesn't have a subnet associated with.
+		// IPv4/v6 pool will be nil if the docker network doesn't have a subnet associated with.
 		// Otherwise, it will be set to the Calico pool to assign from.
 		IPsV4, IPsV6, err := i.client.IPAM().AutoAssign(
 			datastoreClient.AutoAssignArgs{
-				Num4:      1,
-				Num6:      0,
+				Num4:      numIPv4,
+				Num6:      numIPv6,
 				Hostname:  hostname,
 				IPv4Pools: poolV4,
+				IPv6Pools: poolV6,
 			},
 		)
 
@@ -212,8 +233,16 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 	}
 
 	// Return the IP as a CIDR.
+	var respAddr string
+	if IPs[0].Version() == 4 {
+		// IPv4 address
+		respAddr = fmt.Sprintf("%v/%v", IPs[0], "32")
+	} else {
+		// IPv6 address
+		respAddr = fmt.Sprintf("%v/%v", IPs[0], "128")
+	}
 	resp := &ipam.RequestAddressResponse{
-		Address: fmt.Sprintf("%v/%v", IPs[0], "32"),
+		Address: respAddr,
 	}
 
 	logutils.JSONMessage("RequestAddress response", resp)
