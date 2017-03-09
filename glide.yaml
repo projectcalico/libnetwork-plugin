@@ -2,7 +2,7 @@ package: github.com/projectcalico/libnetwork-plugin
 import:
 - package: github.com/Sirupsen/logrus
 - package: github.com/docker/docker
-  version: v1.13.0-rc3
+  version: v17.03.0-ce
   subpackages:
   - client
 - package: github.com/docker/go-plugins-helpers
@@ -11,7 +11,7 @@ import:
   - network
 - package: github.com/pkg/errors
 - package: github.com/projectcalico/libcalico-go
-  version: v1.0.0-rc6
+  version: v1.1.1
   subpackages:
   - lib/api
   - lib/client
