@@ -66,7 +66,7 @@ static-checks: vendor
 			gometalinter --deadline=30s --disable-all --enable=goimports --enable=vet --enable=errcheck --enable=varcheck --enable=unused --enable=dupl $$(glide nv)'
 
 run-etcd:
-	@-docker rm -f calico-etcd calico-etcd-ssl
+	@-docker rm -f calico-etcd
 	docker run --detach \
 	--net=host \
 	--name calico-etcd quay.io/coreos/etcd \
