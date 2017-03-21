@@ -436,7 +436,7 @@ func (d NetworkDriver) DiscoverNew(request *network.DiscoveryNotification) error
 }
 
 func (d NetworkDriver) DiscoverDelete(request *network.DiscoveryNotification) error {
-	logutils.JSONMessage("DiscoverNew", request)
+	logutils.JSONMessage("DiscoverDelete", request)
 	log.Debugln("DiscoverDelete response JSON={}")
 	return nil
 }
