@@ -81,7 +81,7 @@ endif
 	git tag $(VERSION)
 	$(MAKE) $(CONTAINER_NAME) 
 	# Check that the version output appears on a line of its own (the -x option to grep).
-# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
+	# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
 	@echo "Checking if the tag made it into the binary"
 	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || (echo "Reported version:" `docker run --rm calico/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1)
 	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(VERSION)
