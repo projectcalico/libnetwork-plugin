@@ -152,7 +152,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Check profile
@@ -197,7 +197,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Check the interface exists on the Host - it has an autoassigned
@@ -248,7 +248,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name_subnet, mac, name_subnet, ip)))
 
 			// Check the interface exists on the Host - it has an autoassigned
@@ -283,7 +283,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Delete container
@@ -317,7 +317,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":["%s/128"]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":["%s/128"]}`,
 				interface_name, mac, name, ip, ipv6)))
 
 			// Check the interface exists on the Host - it has an autoassigned
