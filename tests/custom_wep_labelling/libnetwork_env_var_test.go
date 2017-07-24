@@ -39,7 +39,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[],"labels":{"baz":"quux","foo": "bar"}}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[],"labels":{"baz":"quux","foo": "bar"}}`,
 				interface_name, mac, name, ip)))
 
 			// Check profile
@@ -83,7 +83,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":null,"ipv4_nets":["%s/32"],"ipv6_nets":[],"labels":{"baz":"quux","foo": "bar"}}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":null,"ipv4_nets":["%s/32"],"ipv6_nets":[],"labels":{"baz":"quux","foo": "bar"}}`,
 				interface_name, mac, ip)))
 
 			// Delete container
