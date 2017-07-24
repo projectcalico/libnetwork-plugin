@@ -174,7 +174,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0"))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
 
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))
@@ -211,7 +211,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0"))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
 
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))
@@ -262,7 +262,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name_subnet))
-			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0"))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
 
 			// Delete container and network
 			DockerString(fmt.Sprintf("docker rm -f %s", name_subnet))
@@ -332,7 +332,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0"))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
 			routes6 := DockerString(fmt.Sprintf("docker exec -i %s ip -6 route", name))
 			Expect(routes6).Should(MatchRegexp("default via fe80::.* dev cali0  metric 1024"))
 
