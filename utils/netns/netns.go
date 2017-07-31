@@ -5,7 +5,7 @@ import (
 	"net"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
