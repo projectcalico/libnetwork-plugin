@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/ipam"
 	"github.com/projectcalico/libcalico-go/lib/api"

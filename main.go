@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/docker/go-plugins-helpers/ipam"
 	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/api"
 	"github.com/projectcalico/libnetwork-plugin/driver"
+	log "github.com/sirupsen/logrus"
 
 	"flag"
 
