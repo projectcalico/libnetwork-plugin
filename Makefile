@@ -27,7 +27,6 @@ SRC_FILES=$(shell find . -type f -name '*.go')
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 
 # Can choose different docker versions see list here - https://hub.docker.com/_/docker/
-DOCKER_VERSION?=dind
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin$(ARCHTAG)
 GO_BUILD_CONTAINER?=calico/go-build$(ARCHTAG):$(GO_BUILD_VER)
@@ -118,7 +117,7 @@ endif
 	@echo "docker push quay.io/calico/libnetwork-plugin$(ARCHTAG):latest"
 
 clean:
-	rm -rf dist *.tar vendor .go-pkg-cache
+	rm -rf dist bin *.tar vendor .go-pkg-cache
 
 run-plugin: run-etcd dist/libnetwork-plugin-$(ARCH)
 	-docker rm -f dind
@@ -146,7 +145,7 @@ test:
 bin/docker:
 	-docker rm -f $(DOCKER_BINARY_CONTAINER) 2>&1
 	mkdir -p ./bin
-	docker create --name $(DOCKER_BINARY_CONTAINER) docker:$(DOCKER_VERSION)
+	docker create --name $(DOCKER_BINARY_CONTAINER) $(DIND_IMAGE)
 	docker cp $(DOCKER_BINARY_CONTAINER):/usr/local/bin/docker ./bin/docker
 	docker rm -f $(DOCKER_BINARY_CONTAINER)
 
