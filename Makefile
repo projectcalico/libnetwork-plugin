@@ -30,7 +30,8 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin$(ARCHTAG)
 GO_BUILD_CONTAINER?=calico/go-build$(ARCHTAG):$(GO_BUILD_VER)
-PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin-$(ARCH)
+DIST=dist/$(ARCH)
+PLUGIN_LOCATION?=$(CURDIR)/$(DIST)/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container$(ARCHTAG)
 
 # To run with non-native docker (e.g. on Windows or OSX) you might need to overide this variable
@@ -55,13 +56,12 @@ install:
 	CGO_ENABLED=0 go install github.com/projectcalico/libnetwork-plugin
 
 # Run the build in a container. Useful for CI
-dist/libnetwork-plugin:dist/libnetwork-plugin-$(ARCH)
-dist/libnetwork-plugin-$(ARCH): vendor
-	-mkdir -p dist
+$(DIST)/libnetwork-plugin: vendor
+	-mkdir -p $(DIST)
 	-mkdir -p .go-pkg-cache
 	docker run --rm \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
-		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
+		-v $(CURDIR)/$(DIST):/go/src/github.com/projectcalico/libnetwork-plugin/$(DIST) \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		-e ARCH=$(ARCH) \
@@ -70,10 +70,10 @@ dist/libnetwork-plugin-$(ARCH): vendor
 			make build'
 
 build: $(SRC_FILES) vendor
-	CGO_ENABLED=0 go build -v -i -o dist/libnetwork-plugin-$(ARCH) -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
+	CGO_ENABLED=0 go build -v -i -o $(DIST)/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 
-$(CONTAINER_NAME): dist/libnetwork-plugin-$(ARCH)
+$(CONTAINER_NAME): $(DIST)/libnetwork-plugin
 	docker build -t $(CONTAINER_NAME) -f Dockerfile$(ARCHTAG) .
 
 # Perform static checks on the code. The golint checks are allowed to fail, the others must pass.
@@ -109,7 +109,7 @@ endif
 	docker tag calico/libnetwork-plugin$(ARCHTAG) quay.io/calico/libnetwork-plugin$(ARCHTAG):$(VERSION)
 	docker tag calico/libnetwork-plugin$(ARCHTAG) quay.io/calico/libnetwork-plugin$(ARCHTAG):latest
 
-	@echo "Now push the tag and images. Then create a release on Github and attach the dist/libnetwork-plugin binary"
+	@echo "Now push the tag and images. Then create a release on Github and attach the $(DIST)/libnetwork-plugin binary"
 	@echo "git push origin $(VERSION)"
 	@echo "docker push calico/libnetwork-plugin$(ARCHTAG):$(VERSION)"
 	@echo "docker push quay.io/calico/libnetwork-plugin$(ARCHTAG):$(VERSION)"
@@ -117,9 +117,9 @@ endif
 	@echo "docker push quay.io/calico/libnetwork-plugin$(ARCHTAG):latest"
 
 clean:
-	rm -rf dist bin *.tar vendor .go-pkg-cache
+	rm -rf $(DIST) bin *.tar vendor .go-pkg-cache
 
-run-plugin: run-etcd dist/libnetwork-plugin-$(ARCH)
+run-plugin: run-etcd $(DIST)/libnetwork-plugin
 	-docker rm -f dind
 	docker run -tid -h test --name dind --privileged $(ADDITIONAL_DIND_ARGS) \
 		-e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 \
@@ -149,12 +149,12 @@ bin/docker:
 	docker cp $(DOCKER_BINARY_CONTAINER):/usr/local/bin/docker ./bin/docker
 	docker rm -f $(DOCKER_BINARY_CONTAINER)
 
-test-containerized: dist/libnetwork-plugin-$(ARCH) bin/docker
+test-containerized: $(DIST)/libnetwork-plugin bin/docker
 	docker run -t --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $(CURDIR)/bin/docker:/usr/bin/docker \
-		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin-$(ARCH) \
+		-e PLUGIN_LOCATION=$(CURDIR)/$(DIST)/libnetwork-plugin \
 		-e LOCAL_USER_ID=0 \
 		-e ARCH=$(ARCH) \
 		-e BUSYBOX_IMAGE=$(BUSYBOX_IMAGE) \
