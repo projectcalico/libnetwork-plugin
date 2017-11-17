@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"strconv"
 
 	"github.com/pkg/errors"
 	libcalicoErrors "github.com/projectcalico/libcalico-go/lib/errors"
@@ -29,6 +30,7 @@ const DOCKER_LABEL_PREFIX = "org.projectcalico.label."
 const LABEL_POLL_TIMEOUT_ENVKEY = "CALICO_LIBNETWORK_LABEL_POLL_TIMEOUT"
 const CREATE_PROFILES_ENVKEY = "CALICO_LIBNETWORK_CREATE_PROFILES"
 const LABEL_ENDPOINTS_ENVKEY = "CALICO_LIBNETWORK_LABEL_ENDPOINTS"
+const VETH_MTU_ENVKEY = "CALICO_LIBNETWORK_VETH_MTU"
 
 // NetworkDriver is the Calico network driver representation.
 // Must be used with Calico IPAM and supports IPv4 only.
@@ -41,6 +43,8 @@ type NetworkDriver struct {
 	ifPrefix string
 
 	DummyIPV4Nexthop string
+
+	vethMTU uint16
 
 	labelPollTimeout time.Duration
 
@@ -70,6 +74,20 @@ func NewNetworkDriver(client *datastoreClient.Client) network.Driver {
 
 		// default: disabled, enable by setting env key to true (case insensitive)
 		labelEndpoints: strings.EqualFold(os.Getenv(LABEL_ENDPOINTS_ENVKEY), "true"),
+	}
+
+	// Check if MTU environment variable is given, parse into uint16
+	// and override the default in the NetworkDriver.
+	if mtuStr, ok := os.LookupEnv(VETH_MTU_ENVKEY); ok {
+		mtu, err := strconv.ParseUint(mtuStr, 10, 16)
+		if err != nil {
+			log.Fatalf("Failed to parse %v '%v' into uint16: %v",
+				VETH_MTU_ENVKEY, mtuStr, err)
+		}
+
+		driver.vethMTU = uint16(mtu)
+
+		log.WithField("mtu", mtu).Info("Parsed veth MTU")
 	}
 
 	if !driver.createProfiles {
@@ -377,10 +395,10 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 	hostInterfaceName := "cali" + prefix
 	tempInterfaceName := "temp" + prefix
 
-	if err = netns.CreateVeth(hostInterfaceName, tempInterfaceName); err != nil {
+	if err = netns.CreateVeth(hostInterfaceName, tempInterfaceName, d.vethMTU); err != nil {
 		err = errors.Wrapf(
-			err, "Veth creation error, hostInterfaceName=%v, tempInterfaceName=%v",
-			hostInterfaceName, tempInterfaceName)
+			err, "Veth creation error, hostInterfaceName=%v, tempInterfaceName=%v, vethMTU=%v",
+			hostInterfaceName, tempInterfaceName, d.vethMTU)
 		log.Errorln(err)
 		return nil, err
 	}
