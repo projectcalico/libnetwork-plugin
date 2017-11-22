@@ -11,7 +11,7 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 DOCKER_VERSION?=rc-dind
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin
-CALICO_BUILD?=calico/go-build
+CALICO_BUILD?=calico/go-build:v0.8
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
@@ -54,7 +54,7 @@ build: $(SRC_FILES) vendor
 	CGO_ENABLED=0 go build -v -i -o dist/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
 
 $(CONTAINER_NAME): dist/libnetwork-plugin
-	docker build -t $(CONTAINER_NAME) .
+	docker build --pull -t $(CONTAINER_NAME) .
 
 # Perform static checks on the code. The golint checks are allowed to fail, the others must pass.
 .PHONY: static-checks
