@@ -57,7 +57,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
-			Expect(routes).Should(Equal("default via 169.254.1.1 dev test0 \n169.254.1.1 dev test0"))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev test0 \n169.254.1.1 dev test0 scope link"))
 
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))
