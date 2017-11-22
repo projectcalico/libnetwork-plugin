@@ -2,6 +2,8 @@
 # considerably.
 .SUFFIXES:
 
+GO_BUILD_VER?=v0.9
+
 SRC_FILES=$(shell find . -type f -name '*.go')
 
 # These variables can be overridden by setting an environment variable.
@@ -11,7 +13,7 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 DOCKER_VERSION?=dind
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin
-CALICO_BUILD?=calico/go-build
+GO_BUILD_CONTAINER?=calico/go-build:$(GO_BUILD_VER)
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
@@ -29,7 +31,7 @@ vendor: glide.yaml
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
 		-v $(HOME)/.glide:/home/user/.glide:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
-		$(CALICO_BUILD) /bin/sh -c ' \
+		$(GO_BUILD_CONTAINER) /bin/sh -c ' \
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			glide install -strip-vendor' 
 
@@ -45,7 +47,7 @@ dist/libnetwork-plugin: vendor
 		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
-		$(CALICO_BUILD) sh -c '\
+		$(GO_BUILD_CONTAINER) sh -c '\
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make build'
 
