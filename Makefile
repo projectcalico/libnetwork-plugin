@@ -2,22 +2,23 @@
 # considerably.
 .SUFFIXES:
 
+GO_BUILD_VER?=v0.8
+
 SRC_FILES=$(shell find . -type f -name '*.go')
 
 # These variables can be overridden by setting an environment variable.
 LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 
 # Can choose different docker versions see list here - https://hub.docker.com/_/docker/
-DOCKER_VERSION?=rc-dind
+DOCKER_VERSION?=dind
 HOST_CHECKOUT_DIR?=$(CURDIR)
 CONTAINER_NAME?=calico/libnetwork-plugin
-CALICO_BUILD?=calico/go-build:v0.8
+GO_BUILD_CONTAINER?=calico/go-build:$(GO_BUILD_VER)
 PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin
 DOCKER_BINARY_CONTAINER?=docker-binary-container
 
-# To run with non-native docker (e.g. on Windows or OSX) you might need to overide these variables
+# To run with non-native docker (e.g. on Windows or OSX) you might need to overide this variable
 LOCAL_USER_ID?=$(shell id -u $$USER)
-LOCAL_GROUP_ID?=$(shell getent group docker | cut -d: -f3)
 
 default: all
 all: test
@@ -30,7 +31,7 @@ vendor: glide.yaml
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:rw \
 		-v $(HOME)/.glide:/home/user/.glide:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
-		$(CALICO_BUILD) /bin/sh -c ' \
+		$(GO_BUILD_CONTAINER) /bin/sh -c ' \
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			glide install -strip-vendor' 
 
@@ -46,7 +47,7 @@ dist/libnetwork-plugin: vendor
 		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
-		$(CALICO_BUILD) sh -c '\
+		$(GO_BUILD_CONTAINER) sh -c '\
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make build'
 
@@ -67,26 +68,13 @@ static-checks: vendor
 			gometalinter --deadline=30s --disable-all --enable=goimports --enable=vet --enable=errcheck --enable=varcheck --enable=unused --enable=dupl $$(glide nv)'
 
 run-etcd:
-	@-docker rm -f calico-etcd calico-etcd-ssl
+	@-docker rm -f calico-etcd
 	docker run --detach \
 	--net=host \
 	--name calico-etcd quay.io/coreos/etcd \
 	etcd \
 	--advertise-client-urls "http://$(LOCAL_IP_ENV):2379,http://127.0.0.1:2379" \
 	--listen-client-urls "http://0.0.0.0:2379"
-
-semaphore: test-containerized
-	set -e; \
-	if [ -z $$PULL_REQUEST_NUMBER ]; then \
-		$(MAKE) $(CONTAINER_NAME); \
-		docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$BRANCH_NAME && docker push $(CONTAINER_NAME):$$BRANCH_NAME; \
-		docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$BRANCH_NAME && docker push quay.io/$(CONTAINER_NAME):$$BRANCH_NAME; \
-		if [ "$$BRANCH_NAME" = "master" ]; then \
-			export VERSION=`git describe --tags --dirty`; \
-			docker tag $(CONTAINER_NAME) $(CONTAINER_NAME):$$VERSION && docker push $(CONTAINER_NAME):$$VERSION; \
-			docker tag $(CONTAINER_NAME) quay.io/$(CONTAINER_NAME):$$VERSION && docker push quay.io/$(CONTAINER_NAME):$$VERSION; \
-		fi; \
-	fi
 
 release: clean
 ifndef VERSION
@@ -95,7 +83,7 @@ endif
 	git tag $(VERSION)
 	$(MAKE) $(CONTAINER_NAME) 
 	# Check that the version output appears on a line of its own (the -x option to grep).
-# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
+	# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
 	@echo "Checking if the tag made it into the binary"
 	docker run --rm calico/libnetwork-plugin -v | grep -x $(VERSION) || (echo "Reported version:" `docker run --rm calico/libnetwork-plugin -v` "\nExpected version: $(VERSION)" && exit 1)
 	docker tag calico/libnetwork-plugin calico/libnetwork-plugin:$(VERSION)
@@ -120,6 +108,7 @@ run-plugin: run-etcd dist/libnetwork-plugin
 		-v $(PLUGIN_LOCATION):/libnetwork-plugin \
 		docker:$(DOCKER_VERSION) --cluster-store=etcd://$(LOCAL_IP_ENV):2379
 	# View the logs by running 'docker exec dind cat plugin.log'
+	docker exec -tid --privileged dind sh -c 'sysctl -w net.ipv6.conf.default.disable_ipv6=0'
 	docker exec -tid --privileged dind sh -c '/libnetwork-plugin 2>>/plugin.log'
 	# To speak to this docker:
 	# export DOCKER_HOST=localhost:5375
@@ -137,11 +126,9 @@ test-containerized: dist/libnetwork-plugin
 	docker run -ti --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-v $(CURDIR)/docker:/usr/bin/docker	\
 		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin \
-		-e EXTRA_GROUP_ID=$(LOCAL_GROUP_ID) \
-		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
+		-e LOCAL_USER_ID=0 \
 		calico/go-build sh -c '\
 			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make test'

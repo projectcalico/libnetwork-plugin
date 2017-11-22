@@ -57,9 +57,15 @@ func GetEtcdString(path string) string {
 }
 
 // CreatePool creates a pool in etcd
-func CreatePool(pool string) {
+func CreatePool(pool string, ipv6 bool) {
+	var ipv string
+	if ipv6 {
+		ipv = "v6"
+	} else {
+		ipv = "v4"
+	}
 	_, err := kapi.Set(context.Background(),
-		fmt.Sprintf("/calico/v1/ipam/v4/pool/%s", strings.Replace(pool, "/", "-", -1)),
+		fmt.Sprintf("/calico/v1/ipam/%s/pool/%s", ipv, strings.Replace(pool, "/", "-", -1)),
 		fmt.Sprintf(`{"cidr": "%s"}`, pool), nil)
 	if err != nil {
 		panic(err)
