@@ -2,15 +2,18 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
 	libcalicoErrors "github.com/projectcalico/libcalico-go/lib/errors"
+	log "github.com/sirupsen/logrus"
 
+	dockerTypes "github.com/docker/docker/api/types"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/api"
@@ -86,33 +89,101 @@ func (d NetworkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) 
 	return &resp, nil
 }
 
+// AllocateNetwork is used for swarm-mode support in remote plugins, which
+// Calico's libnetwork-plugin doesn't currently support.
+func (d NetworkDriver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
+	var resp network.AllocateNetworkResponse
+	logutils.JSONMessage("AllocateNetwork response", resp)
+	return &resp, nil
+}
+
+// FreeNetwork is used for swarm-mode support in remote plugins, which
+// Calico's libnetwork-plugin doesn't currently support.
+func (d NetworkDriver) FreeNetwork(request *network.FreeNetworkRequest) error {
+	logutils.JSONMessage("FreeNetwork request", request)
+	return nil
+}
+
 func (d NetworkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	logutils.JSONMessage("CreateNetwork", request)
+	knownOpts := map[string]bool{"com.docker.network.enable_ipv6": true}
+	// Reject all options (--internal, --enable_ipv6, etc)
+	for k, v := range request.Options {
+		skip := false
+		for known, _ := range knownOpts {
+			if k == known {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		optionSet := false
+		flagName := k
+		flagValue := fmt.Sprintf("%s", v)
+		multipleFlags := false
+		switch v := v.(type) {
+		case bool:
+			// if v == true then optionSet = true
+			optionSet = v
+			flagName = "--" + strings.TrimPrefix(k, "com.docker.network.")
+			flagValue = ""
+			break
+		case map[string]interface{}:
+			optionSet = len(v) != 0
+			flagName = ""
+			numFlags := 0
+			// Sort flags for consistent error reporting
+			flags := []string{}
+			for flag := range v {
+				flags = append(flags, flag)
+			}
+			sort.Strings(flags)
 
-	genericOpts, ok := request.Options["com.docker.network.generic"]
-	if ok {
-		opts, ok := genericOpts.(map[string]interface{})
-		if ok && len(opts) != 0 {
-			err := errors.New("Arbitrary options are not supported")
-			log.Println(err)
+			for _, flag := range flags {
+				flagName = flagName + flag + ", "
+				numFlags++
+			}
+			multipleFlags = numFlags > 1
+			flagName = strings.TrimSuffix(flagName, ", ")
+			flagValue = ""
+			break
+		default:
+			// for unknown case let optionSet = true
+			optionSet = true
+		}
+		if optionSet {
+			if flagValue != "" {
+				flagValue = " (" + flagValue + ")"
+			}
+			f := "flag"
+			if multipleFlags {
+				f = "flags"
+			}
+			err := errors.New("Calico driver does not support the " + f + " " + flagName + flagValue + ".")
+			log.Errorln(err)
 			return err
 		}
-	}
-
-	// Calico driver does not allow you use the --internal flag
-	internal, ok := request.Options["com.docker.network.internal"].(bool)
-	if ok && internal {
-		err := errors.New("Calico driver does not support the --internal flag.")
-		log.Errorln(err)
-		return err
 	}
 
 	for _, ipData := range request.IPv4Data {
 		// Older version of Docker have a bug where they don't provide the correct AddressSpace
 		// so we can't check for calico IPAM using our known address space.
+		// The Docker issue, https://github.com/projectcalico/libnetwork-plugin/issues/77,
+		// was fixed sometime between 1.11.2 and 1.12.3.
 		// Also the pool might not have a fixed values if --subnet was passed
 		// So the only safe thing is to check for our special gateway value
 		if ipData.Gateway != "0.0.0.0/0" {
+			err := errors.New("Non-Calico IPAM driver is used. Note: Docker before 1.12.3 is unsupported")
+			log.Errorln(err)
+			return err
+		}
+	}
+
+	for _, ipData := range request.IPv6Data {
+		// Don't support older versions of Docker which have a bug where the correct AddressSpace isn't provided
+		if ipData.AddressSpace != CalicoGlobalAddressSpace {
 			err := errors.New("Non-Calico IPAM driver is used")
 			log.Errorln(err)
 			return err
@@ -139,7 +210,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 	}
 
 	log.Debugf("Creating endpoint %v\n", request.EndpointID)
-	if request.Interface.Address == "" {
+	if request.Interface.Address == "" && request.Interface.AddressIPv6 == "" {
 		err := errors.New("No address assigned for endpoint")
 		log.Errorln(err)
 		return nil, err
@@ -158,6 +229,18 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		}
 
 		addresses = append(addresses, caliconet.IPNet{IPNet: net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}})
+	}
+
+	if request.Interface.AddressIPv6 != "" {
+		// Parse the address this function was passed.
+		ip6, ipnet, err := net.ParseCIDR(request.Interface.AddressIPv6)
+		log.Debugf("Parsed IP %v from (%v) \n", ip6, request.Interface.AddressIPv6)
+		if err != nil {
+			err = errors.Wrapf(err, "Parsing %v as CIDR failed", request.Interface.AddressIPv6)
+			log.Errorln(err)
+			return nil, err
+		}
+		addresses = append(addresses, caliconet.IPNet{IPNet: *ipnet})
 	}
 
 	endpoint := api.NewWorkloadEndpoint()
@@ -188,7 +271,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		return nil, err
 	}
 	defer dockerCli.Close()
-	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID)
+	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID, dockerTypes.NetworkInspectOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Network %v inspection error", request.NetworkID)
 		log.Errorln(err)
@@ -230,9 +313,9 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 
 	log.Debugf("Workload created, data: %+v\n", endpoint)
 
-    if d.labelEndpoints {
-        go d.populateWorkloadEndpointWithLabels(request.NetworkID, endpoint)
-    }
+	if d.labelEndpoints {
+		go d.populateWorkloadEndpointWithLabels(request.NetworkID, endpoint)
+	}
 
 	var endpointInterface network.EndpointInterface
 	if !userProvidedMac {
@@ -322,6 +405,19 @@ func (d NetworkDriver) Join(request *network.JoinRequest) (*network.JoinResponse
 		NextHop:     "",
 	})
 
+	linkLocalAddr := netns.GetLinkLocalAddr(hostInterfaceName)
+	if linkLocalAddr == nil {
+		log.Warnf("No IPv6 link local address for %s", hostInterfaceName)
+	} else {
+		resp.GatewayIPv6 = fmt.Sprintf("%s", linkLocalAddr)
+		nextHopIPv6 := fmt.Sprintf("%s/128", linkLocalAddr)
+		resp.StaticRoutes = append(resp.StaticRoutes, &network.StaticRoute{
+			Destination: nextHopIPv6,
+			RouteType:   1, // 1 = CONNECTED
+			NextHop:     "",
+		})
+	}
+
 	logutils.JSONMessage("Join response", resp)
 
 	return resp, nil
@@ -341,7 +437,7 @@ func (d NetworkDriver) DiscoverNew(request *network.DiscoveryNotification) error
 }
 
 func (d NetworkDriver) DiscoverDelete(request *network.DiscoveryNotification) error {
-	logutils.JSONMessage("DiscoverNew", request)
+	logutils.JSONMessage("DiscoverDelete", request)
 	log.Debugln("DiscoverDelete response JSON={}")
 	return nil
 }
@@ -390,7 +486,7 @@ RETRY_NETWORK_INSPECT:
 	}
 
 	// inspect our custom network
-	networkData, err := dockerCli.NetworkInspect(context.Background(), networkID)
+	networkData, err := dockerCli.NetworkInspect(context.Background(), networkID, dockerTypes.NetworkInspectOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Error inspecting network %s - retrying (T=%s)", networkID, time.Since(start))
 		log.Warningln(err)

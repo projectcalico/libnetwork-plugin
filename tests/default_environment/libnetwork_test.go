@@ -16,7 +16,8 @@ import (
 var _ = Describe("Libnetwork Tests", func() {
 	BeforeEach(func() {
 		WipeEtcd()
-		CreatePool("192.169.0.0/16")
+		CreatePool("192.169.0.0/16", false)
+		CreatePool("2001:db8::/32", true)
 	})
 
 	// Run the plugin just once for all tests in this file.
@@ -48,7 +49,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			It("rejects --internal being used", func() {
 				session := DockerSession("docker network create $RANDOM --internal -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Calico driver does not support the --internal flag."))
+				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Calico driver does not support the flag --internal."))
 			})
 			It("rejects --ip-range being used", func() {
 				session := DockerSession("docker network create $RANDOM --ip-range 192.169.1.0/24 --subnet=192.169.0.0/16 -d calico --ipam-driver calico-ipam")
@@ -63,7 +64,12 @@ var _ = Describe("Libnetwork Tests", func() {
 			It("rejects --opt being used", func() {
 				session := DockerSession("docker network create $RANDOM --opt REJECT -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(1))
-				Eventually(session.Err).Should(Say("Error response from daemon: NetworkDriver.CreateNetwork: Arbitrary options are not supported"))
+				Eventually(session.Err).Should(Say("NetworkDriver.CreateNetwork: Calico driver does not support the flag REJECT."))
+			})
+			It("rejects multiple --opt being used", func() {
+				session := DockerSession("docker network create $RANDOM --opt REJECT --opt REJECT2 -d calico --ipam-driver calico-ipam")
+				Eventually(session).Should(Exit(1))
+				Eventually(session.Err).Should(Say("NetworkDriver.CreateNetwork: Calico driver does not support the flags REJECT, REJECT2."))
 			})
 		})
 		Context("checking success cases", func() {
@@ -77,8 +83,9 @@ var _ = Describe("Libnetwork Tests", func() {
 				session := DockerSession("docker network create success$RANDOM --subnet 192.169.0.0/16 -d calico --ipam-driver calico-ipam")
 				Eventually(session).Should(Exit(0))
 			})
-
-			PIt("creates a network with IPv6", func() { //TODO - IPv6 support
+			It("creates a network with IPv6", func() {
+				session := DockerSession("docker network create --ipv6 success$RANDOM -d calico --ipam-driver calico-ipam")
+				Eventually(session).Should(Exit(0))
 			})
 			PIt("creates a network with IPv6 from a specific subnet", func() {
 			})
@@ -145,7 +152,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Check profile
@@ -190,7 +197,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Check the interface exists on the Host - it has an autoassigned
@@ -241,7 +248,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name_subnet, mac, name_subnet, ip)))
 
 			// Check the interface exists on the Host - it has an autoassigned
@@ -276,7 +283,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Delete container
@@ -285,6 +292,54 @@ var _ = Describe("Libnetwork Tests", func() {
 
 	})
 
-	//docker stop/rm - stop and rm are the same as far as the plugin is concerned
+	Describe("docker run ipv6", func() {
+		var name string
+		BeforeEach(func() {
+			name = fmt.Sprintf("run%d", rand.Uint32())
+			DockerString(fmt.Sprintf("docker network create --ipv6 %s -d calico --ipam-driver calico-ipam", name))
+		})
+		AfterEach(func() {
+			DockerString(fmt.Sprintf("docker network rm %s", name))
+		})
+
+		It("creates a container on a network  and checks all assertions", func() {
+			// Create a container that will just sit in the background
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s busybox", name, name))
+
+			// Gather information for assertions
+			docker_endpoint := GetDockerEndpoint(name, name)
+			ip := docker_endpoint.IPAddress
+			ipv6 := docker_endpoint.GlobalIPv6Address
+			mac := docker_endpoint.MacAddress
+			endpoint_id := docker_endpoint.EndpointID
+			interface_name := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
+
+			// Check that the endpoint is created in etcd
+			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
+			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":["%s/128"]}`,
+				interface_name, mac, name, ip, ipv6)))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", interface_name))
+			DockerString(fmt.Sprintf("ip -6 addr show %s", interface_name))
+
+			// Make sure the interface in the container exists and has the  assigned ipv6 and mac
+			container_interface_string := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(container_interface_string).Should(ContainSubstring(ipv6))
+			Expect(container_interface_string).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+			routes6 := DockerString(fmt.Sprintf("docker exec -i %s ip -6 route", name))
+			Expect(routes6).Should(MatchRegexp("default via fe80::.* dev cali0  metric 1024"))
+
+			// Delete container
+			DockerString(fmt.Sprintf("docker rm -f %s", name))
+		})
+	})
+	//Docker stop/rm - stop and rm are the same as far as the plugin is concerned
 	// TODO - check that the endpoint is removed from etcd and that the  veth is removed
 })

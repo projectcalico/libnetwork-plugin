@@ -17,7 +17,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			RunPlugin("-e CALICO_LIBNETWORK_IFPREFIX=test")
 
 			// Since running the plugin starts etcd, the pool needs to be created after.
-			CreatePool("192.169.0.0/16")
+			CreatePool("192.169.0.0/16", false)
 
 			name := fmt.Sprintf("run%d", rand.Uint32())
 			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))
@@ -35,7 +35,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			// Check that the endpoint is created in etcd
 			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
 			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				`{"state":"active","name":"%s","active_instance_id": "","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
 				interface_name, mac, name, ip)))
 
 			// Check profile

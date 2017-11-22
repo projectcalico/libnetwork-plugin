@@ -3,13 +3,32 @@
 # Libnetwork plugin for Calico
 
 This plugin for Docker networking ([libnetwork](https://github.com/docker/libnetwork)) is intended for use with [Project Calico](http://www.projectcalico.org).
-The plugin is integrated with the `calico/node` image which is created from the [calico-containers](https://github.com/projectcalico/calico-containers) repository.
+The plugin is integrated with the `calico/node` image which is created from the [calicoctl](https://github.com/projectcalico/calicoctl) repository, but it can also be run in it's own Docker container or as a standalone binary.
 
 Guides on how to get started with the plugin and further documentation is available from http://docs.projectcalico.org
 
-The remaining information is for advanced users. 
+## Supported options for confguration
 
-## How to Run It
+### Working with Networks
+* When creating a network, the `--subnet` option can be passed to `docker network create`. The subnet must match an existing Calico pool, and any containers created on that network will use an IP address from that Calico Pool.
+* Other than `--driver` and `--ipam-driver`, no other options are supported on the `docker network create` command.
+
+### Working with Containers
+When creating containers, use the `--net` option to connect them to a network previously created with `docker network create`
+
+* The `--ip` option can be passed to `docker run` to assign a specific IP to a container.
+* The `--mac` and `--link-local` options are currently unsupported.
+
+## Working with the code
+
+* Clone the repo (clone it into your GOPATH and make sure you use projectcalico in the path, not your fork name).
+* Create the vendor directory (`make vendor`). This uses `glide` in a docker container to create the vendor directory.
+* Build it in a container using `make dist/libnetwork-plugin`. The plugin binary will appear in the `dist` directory.
+* Running tests can be done in a container using `make test-containerized`. Note: This works on linux, but can require additional steps on Mac.
+* Submit PRs through GitHub. Before merging, you'll be asked to squash your commits together, so 1 PR = 1 commit.
+* Before submitting your PR, please make sure tests pass and run `make static-checks`. Both these will be done by the CI system too though.
+
+## How to Run It During Development
 `make run-plugin`
 
 Running the plugin in a container requires a few specific options
@@ -34,6 +53,63 @@ On OSX/Windows you can't run Docker natively. To allow the Makefile to write the
 Run `make test` like this: `LOCAL_USER_ID=1000 LOCAL_GROUP_ID=100 make test-containerized`
 
 
+
+## IPv6 Usage
+
+*Note: IPv4 can't be disabled, IPv6 is enabled in addition to IPv4.*
+
+Docker IPv6 support must be enabled e.g. 
+```
+dockerd --cluster-store=etcd://127.0.0.1:2379 --ipv6 --fixed-cidr-v6="2001:db8:1::/64"
+```
+
+### Start the libnetwork-plugin
+
+```
+sudo dist/libnetwork-plugin
+```
+
+### Add an IPv6 address to the host
+
+```
+sudo ip addr add fd80:24e2:f998:72d7::1/112 dev eth1
+```
+
+### Start calico/node, without using the calico/node libnetwork-plugin, also pass in the host IPv6 address
+
+```
+sudo calicoctl node run --disable-docker-networking --ip6=fd80:24e2:f998:72d7::1
+```
+
+### Create an IPv6 network
+
+```
+docker network create --ipv6 -d calico --ipam-driver calico-ipam my_net
+```
+
+### Run containers on the IPv6 network
+
+```
+  docker run --net my_net --name workload-A -tid busybox
+  docker run --net my_net --name workload-B -tid busybox
+```
+
+
+### Check IPv6 network connectivity
+
+```
+  docker exec workload-A ping -6 -c 4 workload-B.my_net
+  docker exec workload-B ping -6 -c 4 workload-A.my_net
+```
+
+### Check IPv4 network connectivity
+
+```
+  docker exec workload-A ping -4 -c 4 workload-B.my_net
+  docker exec workload-B ping -4 -c 4 workload-A.my_net
+```
+
+
 ## Known limitations
 The following is a list of known limitations when using the Calico libnetwork
 driver:
@@ -41,7 +117,6 @@ driver:
    once a container endpoint is created, it is possible to manually add 
    additional Calico profiles to that endpoint (effectively adding the 
    container into another network).
-- IPv6 is not currently supported
 
 ## Configuring
 
