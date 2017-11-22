@@ -13,13 +13,21 @@ import:
 - package: github.com/sirupsen/logrus
   version: ^0.10.0
 - package: github.com/docker/docker
-  version: v17.03.2-ce
+  version: d032264e1365a1cea621b7105e1ca521cb4218ef
   subpackages:
   - client
+  - api
 - package: github.com/docker/go-plugins-helpers
+  version: 261c0c7fc902aeb7ad448df38e6ee370a3e0e597
   subpackages:
   - ipam
   - network
+- package: github.com/docker/distribution
+  version: e5b5e44386f7964a1f010a2b8b7687d073215bbb
+  subpackages:
+  - reference
+- package: github.com/docker/go-connections
+  version: v0.3.0
 - package: github.com/pkg/errors
 - package: github.com/vishvananda/netlink
 

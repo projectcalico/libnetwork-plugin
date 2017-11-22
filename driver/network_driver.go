@@ -13,6 +13,7 @@ import (
 	libcalicoErrors "github.com/projectcalico/libcalico-go/lib/errors"
 	log "github.com/sirupsen/logrus"
 
+	dockerTypes "github.com/docker/docker/api/types"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/api"
@@ -270,7 +271,7 @@ func (d NetworkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*
 		return nil, err
 	}
 	defer dockerCli.Close()
-	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID)
+	networkData, err := dockerCli.NetworkInspect(context.Background(), request.NetworkID, dockerTypes.NetworkInspectOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Network %v inspection error", request.NetworkID)
 		log.Errorln(err)
@@ -485,7 +486,7 @@ RETRY_NETWORK_INSPECT:
 	}
 
 	// inspect our custom network
-	networkData, err := dockerCli.NetworkInspect(context.Background(), networkID)
+	networkData, err := dockerCli.NetworkInspect(context.Background(), networkID, dockerTypes.NetworkInspectOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Error inspecting network %s - retrying (T=%s)", networkID, time.Since(start))
 		log.Warningln(err)
