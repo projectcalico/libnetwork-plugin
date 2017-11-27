@@ -11,10 +11,11 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func CreateVeth(vethNameHost, vethNameNSTemp string) error {
+func CreateVeth(vethNameHost, vethNameNSTemp string, vethMTU uint16) error {
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: vethNameHost,
+			MTU: int(vethMTU),
 		},
 		PeerName: vethNameNSTemp,
 	}
