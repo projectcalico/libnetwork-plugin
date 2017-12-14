@@ -1,7 +1,7 @@
 package: github.com/projectcalico/libnetwork-plugin
 import:
 - package: github.com/projectcalico/libcalico-go
-  version: 119c3c82c1c22337ceaffea0cdca5b127a139a1d
+  version: v1.7.x-series
 - package: github.com/coreos/etcd
   version: 17ae440991da3bdb2df4309936dd2074f66ec394
 - package: github.com/ugorji/go
