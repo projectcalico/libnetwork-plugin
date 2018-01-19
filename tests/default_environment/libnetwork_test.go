@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -137,7 +138,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 		It("creates a container on a network  and checks all assertions", func() {
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)
@@ -182,7 +183,7 @@ var _ = Describe("Libnetwork Tests", func() {
 		It("creates a container with specific MAC", func() {
 			// Create a container that will just sit in the background
 			chosen_mac := "00:22:33:44:55:66"
-			DockerString(fmt.Sprintf("docker run --mac-address %s --net %s -tid --name %s busybox", chosen_mac, name, name))
+			DockerString(fmt.Sprintf("docker run --mac-address %s --net %s -tid --name %s %s", chosen_mac, name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)
@@ -219,7 +220,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 		PIt("creates a container with specific link local address", func() { // https://github.com/docker/docker/issues/28606
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --link-local-ip 169.254.0.50 %s --net %s -tid --name %s busybox", name, name, name))
+			DockerString(fmt.Sprintf("docker run --link-local-ip 169.254.0.50 %s --net %s -tid --name %s %s", name, name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Delete container
 			DockerString(fmt.Sprintf("docker rm -f %s", name))
@@ -234,7 +235,7 @@ var _ = Describe("Libnetwork Tests", func() {
 			DockerString(fmt.Sprintf("docker network create %s --subnet 192.169.0.0/16 -d calico --ipam-driver calico-ipam", name_subnet))
 			// Create a container that will just sit in the background
 			chosen_ip := "192.169.50.51"
-			DockerString(fmt.Sprintf("docker run --ip %s --net %s -tid --name %s busybox", chosen_ip, name_subnet, name_subnet))
+			DockerString(fmt.Sprintf("docker run --ip %s --net %s -tid --name %s %s", chosen_ip, name_subnet, name_subnet, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name_subnet, name_subnet)
@@ -271,7 +272,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 		It("creates a container with labels, but do not expect those in endpoint", func() {
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)
@@ -304,7 +305,7 @@ var _ = Describe("Libnetwork Tests", func() {
 
 		It("creates a container on a network  and checks all assertions", func() {
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -23,7 +24,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))
 
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --label not=expected --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --label not=expected --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)
@@ -67,7 +68,7 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))
 
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --label not=expected --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s busybox", name, name))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --label not=expected --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
 
 			// Gather information for assertions
 			docker_endpoint := GetDockerEndpoint(name, name)
