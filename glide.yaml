@@ -1,14 +1,14 @@
 package: github.com/projectcalico/libnetwork-plugin
 import:
 - package: github.com/projectcalico/libcalico-go
-  version: v1.7.x-series
+  version: release-v2.6
 - package: github.com/coreos/etcd
   version: 17ae440991da3bdb2df4309936dd2074f66ec394
 - package: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
-- package: github.com/emicklei/go-restful                                                                                               
+- package: github.com/emicklei/go-restful
   version: v1.2
 - package: github.com/sirupsen/logrus
   version: ^0.10.0
