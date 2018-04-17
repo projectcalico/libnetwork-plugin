@@ -1,21 +1,53 @@
-##############################################################################
-# The build architecture is select by setting the ARCH variable.
-# For example: When building on ppc64le you could use ARCH=ppc64le make <....>.
-# When ARCH is undefined it defaults to amd64.
-ARCH?=amd64
-ifeq ($(ARCH),amd64)
-	ARCHTAG:=
-	GO_BUILD_VER?=v0.12
-	BUSYBOX_IMAGE?=busybox:latest
-	DIND_IMAGE?=docker:17.12.0-dind
+###############################################################################
+# Both native and cross architecture builds are supported.
+# The target architecture is select by setting the ARCH variable.
+# When ARCH is undefined it is set to the detected host architecture.
+# When ARCH differs from the host architecture a crossbuild will be performed.
+ARCHES=$(patsubst docker-image/Dockerfile.%,%,$(wildcard docker-image/Dockerfile.*))
+
+# BUILDARCH is the host architecture
+# ARCH is the target architecture
+# we need to keep track of them separately
+BUILDARCH ?= $(shell uname -m)
+BUILDOS ?= $(shell uname -s | tr A-Z a-z)
+
+# canonicalized names for host architecture
+ifeq ($(BUILDARCH),aarch64)
+	BUILDARCH=arm64
+endif
+ifeq ($(BUILDARCH),x86_64)
+	BUILDARCH=amd64
 endif
 
-ifeq ($(ARCH),ppc64le)
-	ARCHTAG:=-ppc64le
-	GO_BUILD_VER?=latest
-	BUSYBOX_IMAGE?=ppc64le/busybox:latest
-	DIND_IMAGE?=ppc64le/docker:dind
+# unless otherwise set, I am building for my own architecture, i.e. not cross-compiling
+ARCH ?= $(BUILDARCH)
+
+# canonicalized names for target architecture
+ifeq ($(ARCH),aarch64)
+	override ARCH=arm64
 endif
+ifeq ($(ARCH),x86_64)
+	override ARCH=amd64
+endif
+
+GO_BUILD_VER ?= v0.14
+# for building, we use the go-build image for the *host* architecture, even if the target is different
+# the one for the host should contain all the necessary cross-compilation tools.
+# cross-compilation is only supported on amd64.
+GO_BUILD_CONTAINER ?= calico/go-build:$(GO_BUILD_VER)-$(BUILDARCH)
+
+# quay.io not following naming convention for amd64 images.
+ifeq ($(BUILDARCH),amd64)
+        ETCD_IMAGE ?= quay.io/coreos/etcd:v3.2.5
+else
+	ETCD_IMAGE ?= quay.io/coreos/etcd:v3.2.5-$(BUILDARCH)
+endif
+
+BUSYBOX_IMAGE_VERSION ?= latest
+BUSYBOX_IMAGE ?= $(BUILDARCH)/busybox:$(BUSYBOX_IMAGE_VERSION)
+
+DIND_IMAGE_VERSION ?= 17.12.0-dind
+DIND_IMAGE ?= $(BUILDARCH)/docker:$(DIND_IMAGE_VERSION)
 
 # Disable make's implicit rules, which are not useful for golang, and slow down the build
 # considerably.
@@ -28,17 +60,42 @@ LOCAL_IP_ENV?=$(shell ip route get 8.8.8.8 | head -1 |  awk '{print $$7}')
 
 # Can choose different docker versions see list here - https://hub.docker.com/_/docker/
 HOST_CHECKOUT_DIR?=$(CURDIR)
-CONTAINER_NAME?=calico/libnetwork-plugin$(ARCHTAG)
-GO_BUILD_CONTAINER?=calico/go-build$(ARCHTAG):$(GO_BUILD_VER)
-DIST=dist/$(ARCH)
-PLUGIN_LOCATION?=$(CURDIR)/$(DIST)/libnetwork-plugin
-DOCKER_BINARY_CONTAINER?=docker-binary-container$(ARCHTAG)
+CONTAINER_NAME?=calico/libnetwork-plugin:latest-$(ARCH)
+PLUGIN_LOCATION?=$(CURDIR)/dist/libnetwork-plugin-$(ARCH)
 
 # To run with non-native docker (e.g. on Windows or OSX) you might need to overide this variable
 LOCAL_USER_ID?=$(shell id -u $$USER)
 
+help:
+	@echo "Makefile for libnetwork-plugin."
+	@echo 
+	@echo "For any target, set ARCH=<target> to build for a given target."
+	@echo "For example, to build for arm64:"
+	@echo
+	@echo "  make image ARCH=arm64"
+	@echo
+	@echo "Builds:"
+	@echo "  make build  Run the build in a container for the current docker OS and ARCH."
+	@echo "  make image  Build the calico/libnetwork-plugin image."
+	@echo "  make all    Builds the image and runs tests."
+	@echo
+	@echo "Tests:"
+	@echo "  make test-containerized	Run tests in a container"
+	@echo
+	@echo "Maintenance:"
+	@echo "  make clean         Remove binary files."
+	@echo "  make help	    Display this help text."
+	@echo "-----------------------------------------"
+	@echo "ARCH (target):		$(ARCH)"
+	@echo "BUILDARCH (host):	$(BUILDARCH)"
+	@echo "GO_BUILD_CONTAINER:	$(GO_BUILD_CONTAINER)"
+	@echo "BUSYBOX_IMAGE:		$(BUSYBOX_IMAGE)"
+	@echo "DIND_IMAGE:		$(DIND_IMAGE)"
+	@echo "ETCDIMAGE:		$(ETCDIMAGE)"
+	@echo "-----------------------------------------"
+
 default: all
-all: test
+all: image test-containerized
 
 # Use this to populate the vendor directory after checking out the repository.
 # To update upstream dependencies, delete the glide.lock file first.
@@ -56,25 +113,32 @@ install:
 	CGO_ENABLED=0 go install github.com/projectcalico/libnetwork-plugin
 
 # Run the build in a container. Useful for CI
-$(DIST)/libnetwork-plugin: vendor
-	-mkdir -p $(DIST)
+build: dist/libnetwork-plugin-$(ARCH)
+dist/libnetwork-plugin-$(ARCH): vendor
+	-mkdir -p dist
 	-mkdir -p .go-pkg-cache
 	docker run --rm \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin:ro \
-		-v $(CURDIR)/$(DIST):/go/src/github.com/projectcalico/libnetwork-plugin/$(DIST) \
+		-v $(CURDIR)/dist:/go/src/github.com/projectcalico/libnetwork-plugin/dist \
 		-v $(CURDIR)/.go-pkg-cache:/go/pkg/:rw \
 		-e LOCAL_USER_ID=$(LOCAL_USER_ID) \
 		-e ARCH=$(ARCH) \
 		$(GO_BUILD_CONTAINER) sh -c '\
 			cd /go/src/github.com/projectcalico/libnetwork-plugin && \
-			make build'
+			make binary'
 
-build: $(SRC_FILES) vendor
-	CGO_ENABLED=0 go build -v -i -o $(DIST)/libnetwork-plugin -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
+binary: $(SRC_FILES) vendor
+	CGO_ENABLED=0 GOARCH=$(ARCH) go build -v -i -o dist/libnetwork-plugin-$(ARCH) -ldflags "-X main.VERSION=$(shell git describe --tags --dirty) -s -w" main.go
+ifeq ($(ARCH),amd64)
+	cp dist/libnetwork-plugin-amd64 dist/libnetwork-plugin
+endif
 
-
-$(CONTAINER_NAME): $(DIST)/libnetwork-plugin
-	docker build -t $(CONTAINER_NAME) -f Dockerfile$(ARCHTAG) .
+image: calico/libnetwork-plugin
+calico/libnetwork-plugin: Dockerfile.$(ARCH) dist/libnetwork-plugin-$(ARCH)
+	docker build -t $(CONTAINER_NAME) -f Dockerfile.$(ARCH) .
+ifeq ($(ARCH),amd64)
+	docker tag $(CONTAINER_NAME) calico/libnetwork-plugin:latest
+endif
 
 # Perform static checks on the code. The golint checks are allowed to fail, the others must pass.
 .PHONY: static-checks
@@ -90,7 +154,7 @@ run-etcd:
 	@-docker rm -f calico-etcd
 	docker run --detach \
 	--net=host \
-	--name calico-etcd quay.io/coreos/etcd:v3.2.5$(ARCHTAG) \
+	--name calico-etcd $(ETCD_IMAGE) \
 	etcd \
 	--advertise-client-urls "http://$(LOCAL_IP_ENV):2379,http://127.0.0.1:2379" \
 	--listen-client-urls "http://0.0.0.0:2379"
@@ -100,26 +164,36 @@ ifndef VERSION
 	$(error VERSION is undefined - run using make release VERSION=vX.Y.Z)
 endif
 	git tag $(VERSION)
-	$(MAKE) $(CONTAINER_NAME) 
+	$(MAKE) image
 	# Check that the version output appears on a line of its own (the -x option to grep).
 	# Tests that the "git tag" makes it into the binary. Main point is to catch "-dirty" builds
 	@echo "Checking if the tag made it into the binary"
-	docker run --rm calico/libnetwork-plugin$(ARCHTAG) -v | grep -x $(VERSION) || (echo "Reported version:" `docker run --rm calico/libnetwork-plugin$(ARCHTAG) -v` "\nExpected version: $(VERSION)" && exit 1)
-	docker tag calico/libnetwork-plugin$(ARCHTAG) calico/libnetwork-plugin$(ARCHTAG):$(VERSION)
-	docker tag calico/libnetwork-plugin$(ARCHTAG) quay.io/calico/libnetwork-plugin$(ARCHTAG):$(VERSION)
-	docker tag calico/libnetwork-plugin$(ARCHTAG) quay.io/calico/libnetwork-plugin$(ARCHTAG):latest
-
-	@echo "Now push the tag and images. Then create a release on Github and attach the $(DIST)/libnetwork-plugin binary"
+	docker run --rm $(CONTAINER_NAME) -v | grep -x $(VERSION) || (echo "Reported version:" `docker run --rm $(CONTAINER_NAME) -v` "\nExpected version: $(VERSION)" && exit 1)
+ifeq ($(ARCH),amd64)
+	docker tag $(CONTAINER_NAME) calico/libnetwork-plugin:$(VERSION)
+	docker tag $(CONTAINER_NAME) quay.io/calico/libnetwork-plugin:$(VERSION)
+	docker tag $(CONTAINER_NAME) quay.io/calico/libnetwork-plugin:latest
+endif
+	docker tag $(CONTAINER_NAME) calico/libnetwork-plugin:$(VERSION)-$(ARCH)
+	docker tag $(CONTAINER_NAME) quay.io/calico/libnetwork-plugin:$(VERSION)-$(ARCH)
+	docker tag $(CONTAINER_NAME) quay.io/calico/libnetwork-plugin:latest-$(ARCH)
+	@echo "Now push the tag and images. Then create a release on Github and attach the dist/libnetwork-plugin binary"
 	@echo "git push origin $(VERSION)"
-	@echo "docker push calico/libnetwork-plugin$(ARCHTAG):$(VERSION)"
-	@echo "docker push quay.io/calico/libnetwork-plugin$(ARCHTAG):$(VERSION)"
-	@echo "docker push calico/libnetwork-plugin$(ARCHTAG):latest"
-	@echo "docker push quay.io/calico/libnetwork-plugin$(ARCHTAG):latest"
+ifeq ($(ARCH),amd64)
+	@echo "docker push calico/libnetwork-plugin:$(VERSION)"
+	@echo "docker push quay.io/calico/libnetwork-plugin:$(VERSION)"
+	@echo "docker push calico/libnetwork-plugin:latest"
+	@echo "docker push quay.io/calico/libnetwork-plugin:latest"
+endif
+	@echo "docker push calico/libnetwork-plugin:$(VERSION)-$(ARCH)"
+	@echo "docker push quay.io/calico/libnetwork-plugin:$(VERSION)-$(ARCH)"
+	@echo "docker push calico/libnetwork-plugin:latest-$(ARCH)"
+	@echo "docker push quay.io/calico/libnetwork-plugin:latest-$(ARCH)"
 
 clean:
-	rm -rf $(DIST) bin *.tar vendor .go-pkg-cache
+	rm -rf dist bin *.tar vendor .go-pkg-cache
 
-run-plugin: run-etcd $(DIST)/libnetwork-plugin
+run-plugin: run-etcd dist/libnetwork-plugin-$(ARCH)
 	-docker rm -f dind
 	docker run -tid -h test --name dind --privileged $(ADDITIONAL_DIND_ARGS) \
 		-e ETCD_ENDPOINTS=http://$(LOCAL_IP_ENV):2379 \
@@ -137,28 +211,18 @@ run-plugin: run-etcd $(DIST)/libnetwork-plugin
 test:
 	CGO_ENABLED=0 ginkgo -v tests/*
 
-# Target test-containerized needs the docker binary to be available in the go-build container.
-# Obtaining it from the docker:dind images docker should provided the latest version.  However,
-# this assumes that the go_build container has the required dependencies or that docker is static.
-# This may not be the case in all configurations. In this cases you should pre-populate ./bin
-# with a docker binary compatible with the go-build image that is used.
-bin/docker:
-	-docker rm -f $(DOCKER_BINARY_CONTAINER) 2>&1
-	mkdir -p ./bin
-	docker create --name $(DOCKER_BINARY_CONTAINER) $(DIND_IMAGE)
-	docker cp $(DOCKER_BINARY_CONTAINER):/usr/local/bin/docker ./bin/docker
-	docker rm -f $(DOCKER_BINARY_CONTAINER)
-
-test-containerized: $(DIST)/libnetwork-plugin bin/docker
+test-containerized: dist/libnetwork-plugin-$(ARCH)
+ifeq ($(BUILDARCH),$(ARCH))
 	docker run -t --rm --net=host \
 		-v $(CURDIR):/go/src/github.com/projectcalico/libnetwork-plugin \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(CURDIR)/bin/docker:/usr/bin/docker \
-		-e PLUGIN_LOCATION=$(CURDIR)/$(DIST)/libnetwork-plugin \
+		-e PLUGIN_LOCATION=$(CURDIR)/dist/libnetwork-plugin-$(ARCH) \
 		-e LOCAL_USER_ID=0 \
 		-e ARCH=$(ARCH) \
 		-e BUSYBOX_IMAGE=$(BUSYBOX_IMAGE) \
 		$(GO_BUILD_CONTAINER) sh -c '\
 			cd  /go/src/github.com/projectcalico/libnetwork-plugin && \
 			make test'
-
+else
+	@echo Test-containerized is not supported when cross building.
+endif
