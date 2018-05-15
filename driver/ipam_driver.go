@@ -179,9 +179,11 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 			version = ipNet.Version()
 			if version == 4 {
 				poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				numIPv4 = 1
 				log.Debugln("Using specific pool ", poolV4)
 			} else if version == 6 {
 				poolV6 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				numIPv6 = 1
 				log.Debugln("Using specific pool ", poolV6)
 			}
 		}
