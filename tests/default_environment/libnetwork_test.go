@@ -270,6 +270,44 @@ var _ = Describe("Libnetwork Tests", func() {
 			DockerString(fmt.Sprintf("docker network rm %s", name_subnet))
 		})
 
+		It("creates a container in network with a subnet", func() {
+			name_subnet := fmt.Sprintf("run%d", rand.Uint32())
+			DockerString(fmt.Sprintf("docker network create %s --subnet 192.169.0.0/16 -d calico --ipam-driver calico-ipam", name_subnet))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", name_subnet, name_subnet, os.Getenv("BUSYBOX_IMAGE") ))
+
+			// Gather information for assertions
+			docker_endpoint := GetDockerEndpoint(name_subnet, name_subnet)
+			ip := docker_endpoint.IPAddress
+			mac := docker_endpoint.MacAddress
+			endpoint_id := docker_endpoint.EndpointID
+			interface_name_subnet := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
+
+			Expect(ip).Should(HavePrefix("192.169."))
+
+			// Check that the endpoint is created in etcd
+			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
+			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
+				`{"state":"active","name":"%s","active_instance_id":"","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
+				interface_name_subnet, mac, name_subnet, ip)))
+
+			// Check the interface exists on the Host - it has an autoassigned
+			// mac and ip, so don't check anything!
+			DockerString(fmt.Sprintf("ip addr show %s", interface_name_subnet))
+
+			// Make sure the interface in the container exists and has the  assigned ip and mac
+			container_interface_string := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name_subnet))
+			Expect(container_interface_string).Should(ContainSubstring(ip))
+			Expect(container_interface_string).Should(ContainSubstring(mac))
+
+			// Make sure the container has the routes we expect
+			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name_subnet))
+			Expect(routes).Should(Equal("default via 169.254.1.1 dev cali0 \n169.254.1.1 dev cali0 scope link"))
+
+			// Delete container and network
+			DockerString(fmt.Sprintf("docker rm -f %s", name_subnet))
+			DockerString(fmt.Sprintf("docker network rm %s", name_subnet))
+		})
+
 		It("creates a container with labels, but do not expect those in endpoint", func() {
 			// Create a container that will just sit in the background
 			DockerString(fmt.Sprintf("docker run --net %s -tid --label org.projectcalico.label.foo=bar --label org.projectcalico.label.baz=quux --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
