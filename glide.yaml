@@ -1,29 +1,17 @@
 package: github.com/projectcalico/libnetwork-plugin
 import:
-- package: github.com/projectcalico/libcalico-go
-  version: v1.7.x-series
-- package: github.com/coreos/etcd
-  version: 17ae440991da3bdb2df4309936dd2074f66ec394
-- package: github.com/ugorji/go
-  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
-  subpackages:
-  - codec
-- package: github.com/emicklei/go-restful                                                                                               
-  version: v1.2
 - package: github.com/sirupsen/logrus
-  version: ^0.10.0
-- package: github.com/docker/docker
-  version: v17.03.2-ce
-  subpackages:
-  - client
+  version: ^1.0.5
+- package: github.com/codegangsta/cli
+  version: ^1.20.0
 - package: github.com/docker/go-plugins-helpers
   subpackages:
   - ipam
   - network
-- package: github.com/pkg/errors
-- package: github.com/vishvananda/netlink
-
-testImport:
+- package: github.com/projectcalico/libcalico-go
+  version: master
+- package: github.com/docker/docker
+  version: master
 - package: github.com/onsi/ginkgo
 - package: github.com/onsi/gomega
   subpackages:

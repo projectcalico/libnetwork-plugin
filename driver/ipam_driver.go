@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -8,21 +9,22 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/ipam"
-	"github.com/projectcalico/libcalico-go/lib/api"
-	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
+	"github.com/projectcalico/libcalico-go/lib/clientv3"
+	calicoipam "github.com/projectcalico/libcalico-go/lib/ipam"
 	caliconet "github.com/projectcalico/libcalico-go/lib/net"
+	"github.com/projectcalico/libcalico-go/lib/options"
 	logutils "github.com/projectcalico/libnetwork-plugin/utils/log"
 	osutils "github.com/projectcalico/libnetwork-plugin/utils/os"
 )
 
 type IpamDriver struct {
-	client *datastoreClient.Client
+	client clientv3.Interface
 
 	poolIDV4 string
 	poolIDV6 string
 }
 
-func NewIpamDriver(client *datastoreClient.Client) ipam.Ipam {
+func NewIpamDriver(client clientv3.Interface) ipam.Ipam {
 	return IpamDriver{
 		client: client,
 
@@ -92,16 +94,29 @@ func (i IpamDriver) RequestPool(request *ipam.RequestPoolRequest) (*ipam.Request
 			return nil, err
 		}
 
-		pools, err := poolsClient.List(api.IPPoolMetadata{CIDR: *ipNet})
-		if err != nil || len(pools.Items) < 1 {
+		pools, err := poolsClient.List(context.Background(), options.ListOptions{})
+		if err != nil {
+			log.Errorln(err)
+			return nil, err
+		}
+
+		f := false
+		for _, p := range pools.Items {
+			if p.Spec.CIDR == ipNet.String() {
+				f = true
+				pool = p.Spec.CIDR
+				poolID = p.Name
+				break
+			}
+		}
+
+		if !f {
 			err := errors.New("The requested subnet must match the CIDR of a " +
 				"configured Calico IP Pool.",
 			)
 			log.Errorln(err)
 			return nil, err
 		}
-		pool = request.Pool
-		poolID = request.Pool
 	}
 
 	// We use static pool ID and CIDR. We don't need to signal the
@@ -162,27 +177,27 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 			numIPv6 = 1
 		} else {
 			poolsClient := i.client.IPPools()
-			_, ipNet, err := caliconet.ParseCIDR(request.PoolID)
+			ipPool, err := poolsClient.Get(context.Background(), request.PoolID, options.GetOptions{})
+			if err != nil {
+				err = errors.Wrapf(err, "Invalid Pool - %v", request.PoolID)
+				log.Errorln(err)
+				return nil, err
+			}
+
+			_, ipNet, err := caliconet.ParseCIDR(ipPool.Spec.CIDR)
 			if err != nil {
 				err = errors.Wrapf(err, "Invalid CIDR - %v", request.PoolID)
 				log.Errorln(err)
 				return nil, err
 			}
-			pool, err := poolsClient.Get(api.IPPoolMetadata{CIDR: *ipNet})
-			if err != nil {
-				err := errors.New("The network references a Calico pool which " +
-					"has been deleted. Please re-instate the " +
-					"Calico pool before using the network.")
-				log.Errorln(err)
-				return nil, err
-			}
+
 			version = ipNet.Version()
 			if version == 4 {
-				poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				poolV4 = []caliconet.IPNet{caliconet.IPNet{IPNet: ipNet.IPNet}}
 				numIPv4 = 1
 				log.Debugln("Using specific pool ", poolV4)
 			} else if version == 6 {
-				poolV6 = []caliconet.IPNet{caliconet.IPNet{IPNet: pool.Metadata.CIDR.IPNet}}
+				poolV6 = []caliconet.IPNet{caliconet.IPNet{IPNet: ipNet.IPNet}}
 				numIPv6 = 1
 				log.Debugln("Using specific pool ", poolV6)
 			}
@@ -192,7 +207,8 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// IPv4/v6 pool will be nil if the docker network doesn't have a subnet associated with.
 		// Otherwise, it will be set to the Calico pool to assign from.
 		IPsV4, IPsV6, err := i.client.IPAM().AutoAssign(
-			datastoreClient.AutoAssignArgs{
+			context.Background(),
+			calicoipam.AutoAssignArgs{
 				Num4:      numIPv4,
 				Num6:      numIPv6,
 				Hostname:  hostname,
@@ -213,11 +229,11 @@ func (i IpamDriver) RequestAddress(request *ipam.RequestAddressRequest) (*ipam.R
 		// (i.e. it doesn't need to match the subnet from the docker network).
 		log.Debugln("Reserving a specific address in Calico pools")
 		ip := net.ParseIP(request.Address)
-		ipArgs := datastoreClient.AssignIPArgs{
+		ipArgs := calicoipam.AssignIPArgs{
 			IP:       caliconet.IP{IP: ip},
 			Hostname: hostname,
 		}
-		err := i.client.IPAM().AssignIP(ipArgs)
+		err := i.client.IPAM().AssignIP(context.Background(), ipArgs)
 		if err != nil {
 			err = errors.Wrapf(err, "IP assignment error, data: %+v", ipArgs)
 			log.Errorln(err)
@@ -259,7 +275,7 @@ func (i IpamDriver) ReleaseAddress(request *ipam.ReleaseAddressRequest) error {
 
 	// Unassign the address.  This handles the address already being unassigned
 	// in which case it is a no-op.
-	_, err := i.client.IPAM().ReleaseIPs([]caliconet.IP{ip})
+	_, err := i.client.IPAM().ReleaseIPs(context.Background(), []caliconet.IP{ip})
 	if err != nil {
 		err = errors.Wrapf(err, "IP releasing error, ip: %v", ip)
 		log.Errorln(err)

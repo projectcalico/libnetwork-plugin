@@ -1,12 +1,14 @@
 package custom_if_prefix
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	api "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	mathutils "github.com/projectcalico/libnetwork-plugin/utils/math"
 	. "github.com/projectcalico/libnetwork-plugin/utils/test"
 )
@@ -17,44 +19,49 @@ var _ = Describe("Running plugin with custom ENV", func() {
 			// Run the plugin with custom IFPREFIX
 			RunPlugin("-e CALICO_LIBNETWORK_IFPREFIX=test")
 
+			pool := "test"
+			subnet := "192.169.0.0/16"
 			// Since running the plugin starts etcd, the pool needs to be created after.
-			CreatePool("192.169.0.0/16", false)
+			CreatePool(pool, subnet)
 
 			name := fmt.Sprintf("run%d", rand.Uint32())
-			DockerString(fmt.Sprintf("docker network create %s -d calico --ipam-driver calico-ipam", name))
+			nid := DockerString(fmt.Sprintf("docker network create --driver calico --ipam-driver calico-ipam --subnet %s %s ", subnet, pool))
+			UpdatePool(pool, subnet, nid)
 
 			// Create a container that will just sit in the background
-			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", name, name, os.Getenv("BUSYBOX_IMAGE") ))
+			DockerString(fmt.Sprintf("docker run --net %s -tid --name %s %s", pool, name, os.Getenv("BUSYBOX_IMAGE")))
 
 			// Gather information for assertions
-			docker_endpoint := GetDockerEndpoint(name, name)
-			ip := docker_endpoint.IPAddress
-			mac := docker_endpoint.MacAddress
-			endpoint_id := docker_endpoint.EndpointID
-			interface_name := "cali" + endpoint_id[:mathutils.MinInt(11, len(endpoint_id))]
+			dockerEndpoint := GetDockerEndpoint(name, pool)
+			ip := dockerEndpoint.IPAddress
+			mac := dockerEndpoint.MacAddress
+			endpointID := dockerEndpoint.EndpointID
+			vethName := "cali" + endpointID[:mathutils.MinInt(11, len(endpointID))]
 
 			// Check that the endpoint is created in etcd
-			etcd_endpoint := GetEtcdString(fmt.Sprintf("/calico/v1/host/test/workload/libnetwork/libnetwork/endpoint/%s", endpoint_id))
-			Expect(etcd_endpoint).Should(MatchJSON(fmt.Sprintf(
-				`{"state":"active","name":"%s","active_instance_id": "","mac":"%s","profile_ids":["%s"],"ipv4_nets":["%s/32"],"ipv6_nets":[]}`,
-				interface_name, mac, name, ip)))
+			key := fmt.Sprintf("/calico/resources/v3/projectcalico.org/workloadendpoints/libnetwork/test-libnetwork-libnetwork-%s", endpointID)
+			endpointJSON := GetEtcd(key)
+			wep := api.NewWorkloadEndpoint()
+			json.Unmarshal(endpointJSON, &wep)
+			Expect(wep.Spec.InterfaceName).Should(Equal(vethName))
 
 			// Check profile
-			tags := GetEtcdString(fmt.Sprintf("/calico/v1/policy/profile/%s/tags", name))
-			labels := GetEtcdString(fmt.Sprintf("/calico/v1/policy/profile/%s/labels", name))
-			rules := GetEtcdString(fmt.Sprintf("/calico/v1/policy/profile/%s/rules", name))
-			Expect(tags).Should(MatchJSON(fmt.Sprintf(`["%s"]`, name)))
-			Expect(labels).Should(MatchJSON("{}"))
-			Expect(rules).Should(MatchJSON(fmt.Sprintf(`{"inbound_rules": [{"action": "allow","src_tag": "%s"}],"outbound_rules":[{"action": "allow"}]}`, name)))
+			profile := api.NewProfile()
+			json.Unmarshal(GetEtcd(fmt.Sprintf("/calico/resources/v3/projectcalico.org/profiles/%s", pool)), &profile)
+			Expect(profile.Name).Should(Equal(pool))
+			Expect(len(profile.Labels)).Should(Equal(0))
+			//tags deprecated
+			Expect(profile.Spec.Ingress[0].Action).Should(Equal(api.Allow))
+			Expect(profile.Spec.Egress[0].Action).Should(Equal(api.Allow))
 
 			// Check the interface exists on the Host - it has an autoassigned
 			// mac and ip, so don't check anything!
-			DockerString(fmt.Sprintf("ip addr show %s", interface_name))
+			DockerString(fmt.Sprintf("ip addr show %s", vethName))
 
 			// Make sure the interface in the container exists and has the  assigned ip and mac
-			container_interface_string := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
-			Expect(container_interface_string).Should(ContainSubstring(ip))
-			Expect(container_interface_string).Should(ContainSubstring(mac))
+			containerNICString := DockerString(fmt.Sprintf("docker exec -i %s ip addr", name))
+			Expect(containerNICString).Should(ContainSubstring(ip))
+			Expect(containerNICString).Should(ContainSubstring(mac))
 
 			// Make sure the container has the routes we expect
 			routes := DockerString(fmt.Sprintf("docker exec -i %s ip route", name))

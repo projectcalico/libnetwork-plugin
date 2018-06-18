@@ -5,15 +5,14 @@ import (
 
 	"github.com/docker/go-plugins-helpers/ipam"
 	"github.com/docker/go-plugins-helpers/network"
-	"github.com/projectcalico/libcalico-go/lib/api"
+	"github.com/projectcalico/libcalico-go/lib/apiconfig"
+	"github.com/projectcalico/libcalico-go/lib/clientv3"
 	"github.com/projectcalico/libnetwork-plugin/driver"
 	log "github.com/sirupsen/logrus"
 
 	"flag"
 
 	"fmt"
-
-	datastoreClient "github.com/projectcalico/libcalico-go/lib/client"
 )
 
 const (
@@ -22,8 +21,8 @@ const (
 )
 
 var (
-	config *api.CalicoAPIConfig
-	client *datastoreClient.Client
+	config *apiconfig.CalicoAPIConfig
+	client clientv3.Interface
 )
 
 func init() {
@@ -34,10 +33,10 @@ func init() {
 func initializeClient() {
 	var err error
 
-	if config, err = datastoreClient.LoadClientConfig(""); err != nil {
+	if config, err = apiconfig.LoadClientConfig(""); err != nil {
 		panic(err)
 	}
-	if client, err = datastoreClient.New(*config); err != nil {
+	if client, err = clientv3.New(*config); err != nil {
 		panic(err)
 	}
 

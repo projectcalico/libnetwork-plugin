@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -9,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	etcdclient "github.com/coreos/etcd/client"
+	etcdclient "github.com/coreos/etcd/clientv3"
 	"github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega/gexec"
 )
 
-var kapi etcdclient.KeysAPI
+var kapi etcdclient.KV
 
 func init() {
 	// Create a random seed
@@ -24,7 +25,7 @@ func init() {
 
 	cfg := etcdclient.Config{Endpoints: []string{"http://127.0.0.1:2379"}}
 	c, _ := etcdclient.New(cfg)
-	kapi = etcdclient.NewKeysAPI(c)
+	kapi = etcdclient.NewKV(c)
 }
 
 // GetDockerEndpoint gets the endpoint information from Docker
@@ -45,28 +46,47 @@ func GetDockerEndpoint(container, network string) *network.EndpointSettings {
 	return info.NetworkSettings.Networks[network]
 }
 
-// GetEtcdString gets a string for a given etcd path
-func GetEtcdString(path string) string {
-	// TODO - would be better to use libcalico to get data rather than talking to etcd direct
-	resp, err := kapi.Get(context.Background(),
-		path, nil)
+func GetNotExists(path string) bool {
+	resp, err := kapi.Get(context.Background(), path)
 	if err != nil {
 		panic(err)
 	}
-	return resp.Node.Value
+	return len(resp.Kvs) == 0
+}
+
+// GetEtcd gets a string for a given etcd path
+func GetEtcd(path string) []byte {
+	// TODO - would be better to use libcalico to get data rather than talking to etcd direct
+	resp, err := kapi.Get(context.Background(), path)
+	if err != nil {
+		panic(err)
+	}
+	if len(resp.Kvs) != 1 {
+		panic(errors.New("no answer"))
+	}
+	return resp.Kvs[0].Value
+}
+
+// GetEtcdString gets a string for a given etcd path
+func GetEtcdString(path string) string {
+	return string(GetEtcd(path))
 }
 
 // CreatePool creates a pool in etcd
-func CreatePool(pool string, ipv6 bool) {
-	var ipv string
-	if ipv6 {
-		ipv = "v6"
-	} else {
-		ipv = "v4"
+func CreatePool(pool, cidr string) {
+	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s", "creationTimestamp":"2018-06-05T11:47:45Z", "uid": "431f5c3e-68b6-11e8-8f6c-08002749ff23"},"spec":{"cidr":"%s","ipipMode":"Never","natOutgoing":true}}`, pool, cidr)
+	key := fmt.Sprintf(`/calico/resources/v3/projectcalico.org/ippools/%s`, pool)
+	_, err := kapi.Put(context.Background(), key, data)
+	if err != nil {
+		panic(err)
 	}
-	_, err := kapi.Set(context.Background(),
-		fmt.Sprintf("/calico/v1/ipam/%s/pool/%s", ipv, strings.Replace(pool, "/", "-", -1)),
-		fmt.Sprintf(`{"cidr": "%s"}`, pool), nil)
+}
+
+// Update pool with network id
+func UpdatePool(pool, cidr, nid string) {
+	data := fmt.Sprintf(`{"kind":"IPPool","apiVersion":"projectcalico.org/v3","metadata":{"name":"%s","uid":"431f5c3e-68b6-11e8-8f6c-08002749ff23","creationTimestamp":"2018-06-05T11:47:45Z","annotations":{"org.projectcalico.label.network.ID":"%s"}, "uid": "431f5c3e-68b6-11e8-8f6c-08002749ff23"},"spec":{"cidr":"%s","ipipMode":"Nerver","natOutgoing":true}}`, pool, nid, cidr)
+	key := fmt.Sprintf(`/calico/resources/v3/projectcalico.org/ippools/%s`, pool)
+	_, err := kapi.Put(context.Background(), key, data)
 	if err != nil {
 		panic(err)
 	}
@@ -74,9 +94,12 @@ func CreatePool(pool string, ipv6 bool) {
 
 // WipeEtcd deletes everything under /calico from etcd
 func WipeEtcd() {
-	_, err := kapi.Delete(context.Background(), "/calico", &etcdclient.DeleteOptions{Dir: true, Recursive: true})
-	if err != nil && !etcdclient.IsKeyNotFound(err) {
+	r, err := kapi.Get(context.Background(), "/calico", etcdclient.WithFromKey())
+	if err != nil {
 		panic(err)
+	}
+	for _, kv := range r.Kvs {
+		kapi.Delete(context.Background(), string(kv.Key))
 	}
 }
 
