@@ -145,6 +145,7 @@ binary: $(SRC_FILES) vendor
 ###############################################################################
 # Building the image
 ###############################################################################
+$(CONTAINER_NAME): image
 image: image.created-$(ARCH)
 image-all: $(addprefix sub-image-,$(ARCHES))
 sub-image-%:
