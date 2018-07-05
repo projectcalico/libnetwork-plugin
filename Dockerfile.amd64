@@ -1,4 +1,5 @@
-FROM ppc64le/alpine
+FROM alpine
 MAINTAINER Tom Denham <tom@projectcalico.org>
-ADD dist/ppc64le/libnetwork-plugin /libnetwork-plugin
+ADD dist/libnetwork-plugin-amd64 /libnetwork-plugin
 ENTRYPOINT ["/libnetwork-plugin"]
+
