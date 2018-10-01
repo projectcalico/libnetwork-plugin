@@ -13,4 +13,5 @@ cover
 calicoctl
 *.tar
 *.created
+libnetwork-plugin
 .go-pkg-cache/

@@ -30,7 +30,7 @@ ifeq ($(ARCH),x86_64)
 	override ARCH=amd64
 endif
 
-GO_BUILD_VER ?= v0.15
+GO_BUILD_VER ?= v0.16
 # for building, we use the go-build image for the *host* architecture, even if the target is different
 # the one for the host should contain all the necessary cross-compilation tools.
 # cross-compilation is only supported on amd64.
@@ -46,7 +46,7 @@ endif
 BUSYBOX_IMAGE_VERSION ?= latest
 BUSYBOX_IMAGE ?= $(BUILDARCH)/busybox:$(BUSYBOX_IMAGE_VERSION)
 
-DIND_IMAGE_VERSION ?= 17.12.0-dind
+DIND_IMAGE_VERSION ?= 18.05.0-dind
 DIND_IMAGE ?= $(BUILDARCH)/docker:$(DIND_IMAGE_VERSION)
 
 # Disable make's implicit rules, which are not useful for golang, and slow down the build
