@@ -1,11 +1,17 @@
 [![Build Status](https://semaphoreci.com/api/v1/projects/d51a0276-7939-409e-80ac-aa5df9421fef/510521/badge.svg)](https://semaphoreci.com/calico/libnetwork-plugin)
 
+# Repository status
+
+The libnetwork plugin integration is no longer included as a core component in Calico releases, and is not being actively developed or supported by the core Calico team. The latest release of Calico which
+includes this plugin is the v2.6.x series of releases.
+
+This repository relies on community contributions for enhancements and bug fixes, which will be reviewed and merged by the Calico team on a best-effort basis.
+
+If you would like to become a maintainer of this project, please reach out to the Calico team in the #calico-dev slack channel.
+
 # Libnetwork plugin for Calico
 
-This plugin for Docker networking ([libnetwork](https://github.com/docker/libnetwork)) is intended for use with [Project Calico](http://www.projectcalico.org).
-The plugin is integrated with the `calico/node` image which is created from the [calicoctl](https://github.com/projectcalico/calicoctl) repository, but it can also be run in it's own Docker container or as a standalone binary.
-
-Guides on how to get started with the plugin and further documentation is available from http://docs.projectcalico.org
+This plugin for Docker networking ([libnetwork](https://github.com/docker/libnetwork)) is intended for use with [Project Calico](http://www.projectcalico.org). For Calico's Kubernetes integration, see the [CNI plugin](https://github.com/projectcalico/cni-plugin).
 
 ## Supported options for confguration
 
@@ -58,7 +64,7 @@ Run `make test` like this: `LOCAL_USER_ID=1000 LOCAL_GROUP_ID=100 make test-cont
 
 *Note: IPv4 can't be disabled, IPv6 is enabled in addition to IPv4.*
 
-Docker IPv6 support must be enabled e.g. 
+Docker IPv6 support must be enabled e.g.
 ```
 dockerd --cluster-store=etcd://127.0.0.1:2379 --ipv6 --fixed-cidr-v6="2001:db8:1::/64"
 ```
@@ -114,8 +120,8 @@ docker network create --ipv6 -d calico --ipam-driver calico-ipam my_net
 The following is a list of known limitations when using the Calico libnetwork
 driver:
 -  It is not possible to add multiple networks to a single container.  However,
-   once a container endpoint is created, it is possible to manually add 
-   additional Calico profiles to that endpoint (effectively adding the 
+   once a container endpoint is created, it is possible to manually add
+   additional Calico profiles to that endpoint (effectively adding the
    container into another network).
 
 ## Configuring
@@ -145,7 +151,7 @@ Example: `docker run --label org.projectcalico.label.foo=bar --net <calico netwo
 ## Troubleshooting
 
 ### Logging
-Logs are sent to STDOUT. If using Docker these can be viewed with the 
+Logs are sent to STDOUT. If using Docker these can be viewed with the
 `docker logs` command.
 
 ### Monitoring
